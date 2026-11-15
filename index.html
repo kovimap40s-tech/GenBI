@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CloverMap UMKM — Pemetaan UMKM Interaktif Realtime</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        clover: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            200: '#a7f3d0',
+                            300: '#6ee7b7',
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                        }
+                    },
+                    animation: {
+                        'float-slow': 'floatSlow 3.5s ease-in-out infinite',
+                        'pulse-ring': 'pulseRing 2s cubic-bezier(0.24, 0, 0.38, 1) infinite',
+                    },
+                    keyframes: {
+                        floatSlow: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-6px)' },
+                        },
+                        pulseRing: {
+                            '0%': { transform: 'scale(0.8)', opacity: '0.85' },
+                            '70%': { transform: 'scale(2.2)', opacity: '0' },
+                            '100%': { transform: 'scale(2.2)', opacity: '0' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Firebase v10 Compat SDK (App & Realtime Database) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+    <style>
+        /* Kustomisasi Scrollbar Lembut */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #ecfdf5;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #6ee7b7;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #10b981;
+        }
+
+        /* Hilangkan kontainer default DivIcon Leaflet agar transparan */
+        .clover-div-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+
+        /* Animasi Mengambang & Denyut Lembut pada Pin Clover */
+        @keyframes cloverFloat {
+            0%, 100% {
+                transform: translateY(0px) scale(1);
+            }
+            50% {
+                transform: translateY(-6px) scale(1.04);
+            }
+        }
+
+        @keyframes cloverGlow {
+            0%, 100% {
+                filter: drop-shadow(0 4px 6px rgba(5, 150, 105, 0.28));
+            }
+            50% {
+                filter: drop-shadow(0 8px 12px rgba(16, 185, 129, 0.45));
+            }
+        }
+
+        .clover-pin-wrapper {
+            animation: cloverFloat 3s ease-in-out infinite, cloverGlow 3s ease-in-out infinite;
+            transform-origin: bottom center;
+            transition: transform 0.2s ease;
+        }
+
+        .clover-pin-wrapper:hover {
+            animation-play-state: paused;
+            transform: scale(1.12) translateY(-4px);
+            z-index: 9999 !important;
+        }
+
+        /* Animasi Lingkaran Progress Long-Press */
+        .long-press-circle {
+            stroke-dasharray: 150.8; /* 2 * PI * 24 */
+            stroke-dashoffset: 150.8;
+            transition: stroke-dashoffset 0.6s linear;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        .long-press-active .long-press-circle {
+            stroke-dashoffset: 0;
+        }
+
+        /* Penanda Lokasi GPS Pengguna Berdenyut */
+        .user-gps-dot {
+            width: 18px;
+            height: 18px;
+            background: #0284c7;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.5);
+            position: relative;
+        }
+        .user-gps-pulse {
+            position: absolute;
+            top: -11px;
+            left: -11px;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(16, 185, 129, 0.45);
+            border: 2px solid #10b981;
+            animation: pulseRing 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+            pointer-events: none;
+        }
+
+        /* Latar Motif Clover Halus untuk Halaman Auth */
+        .clover-bg-pattern {
+            background-color: #ecfdf5;
+            background-image: radial-gradient(#a7f3d0 1.2px, transparent 1.2px), radial-gradient(#6ee7b7 1.2px, #ecfdf5 1.2px);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+        }
+
+        /* Mencegah pemilihan teks saat long-press di peta mobile */
+        #map {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+    </style>
+</head>
+<body class="bg-white text-slate-800 antialiased overflow-hidden h-screen w-screen relative select-none">
+
+    <!-- ===================================================================== -->
+    <!-- TOAST NOTIFICATION SYSTEM (Pengganti alert() yang ramah & elegan)     -->
+    <!-- ===================================================================== -->
+    <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[10000] flex flex-col items-center gap-2 pointer-events-none w-full max-w-md px-4"></div>
+
+    <!-- ===================================================================== -->
+    <!-- 1. HALAMAN AUTENTIKASI (LOGIN / DAFTAR AKUN)                          -->
+    <!-- ===================================================================== -->
+    <section id="auth-screen" class="fixed inset-0 z-[5000] clover-bg-pattern flex items-center justify-center p-4 overflow-y-auto">
+        <!-- Dekorasi Daun Clover Melayang di Latar Belakang -->
+        <div class="fixed top-10 left-10 text-clover-300/50 animate-float-slow pointer-events-none hidden sm:block">
+            <svg class="w-24 h-24" viewBox="0 0 100 100" fill="currentColor">
+                <path d="M50 48 C35 20, 5 25, 22 48 C5 71, 35 76, 50 48 Z"/>
+                <path d="M50 48 C65 20, 95 25, 78 48 C95 71, 65 76, 50 48 Z"/>
+                <path d="M50 48 C22 33, 27 3, 50 20 C73 3, 78 33, 50 48 Z"/>
+                <path d="M50 48 C22 63, 27 93, 50 76 C73 93, 78 63, 50 48 Z"/>
+            </svg>
+        </div>
+        <div class="fixed bottom-12 right-12 text-clover-400/40 animate-float-slow pointer-events-none hidden sm:block" style="animation-delay: 1.5s;">
+            <svg class="w-28 h-28 rotate-12" viewBox="0 0 100 100" fill="currentColor">
+                <path d="M50 48 C35 20, 5 25, 22 48 C5 71, 35 76, 50 48 Z"/>
+                <path d="M50 48 C65 20, 95 25, 78 48 C95 71, 65 76, 50 48 Z"/>
+                <path d="M50 48 C22 33, 27 3, 50 20 C73 3, 78 33, 50 48 Z"/>
+                <path d="M50 48 C22 63, 27 93, 50 76 C73 93, 78 63, 50 48 Z"/>
+            </svg>
+        </div>
+
+        <div class="w-full max-w-md bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl shadow-clover-900/10 border border-clover-100 p-6 sm:p-8 relative z-10 my-auto">
+            <!-- Header Brand CloverMap -->
+            <div class="flex flex-col items-center text-center mb-6">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-clover-400 to-clover-600 flex items-center justify-center shadow-lg shadow-clover-500/30 mb-3">
+                    <!-- Ikon Four-Leaf Clover Kotoha Style -->
+                    <svg class="w-10 h-10 text-white" viewBox="0 0 100 100" fill="none">
+                        <path d="M50 50 C34 22, 6 28, 24 50 C6 72, 34 78, 50 50 Z" fill="currentColor" fill-opacity="0.95"/>
+                        <path d="M50 50 C66 22, 94 28, 76 50 C94 72, 66 78, 50 50 Z" fill="currentColor" fill-opacity="0.95"/>
+                        <path d="M50 50 C22 34, 28 6, 50 24 C72 6, 78 34, 50 50 Z" fill="currentColor"/>
+                        <path d="M50 50 C22 66, 28 94, 50 76 C72 94, 78 66, 50 50 Z" fill="currentColor"/>
+                        <path d="M50 52 Q52 78 44 92" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+                        <circle cx="50" cy="50" r="4" fill="#d1fae5"/>
+                    </svg>
+                </div>
+                <h1 class="font-display text-2xl font-extrabold text-slate-800 tracking-tight">
+                    CloverMap <span class="text-clover-600">UMKM</span>
+                </h1>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                    Peta Kolaboratif & Direktori UMKM Lokal Realtime
+                </p>
+            </div>
+
+            <!-- Tab Switcher Login / Daftar -->
+            <div class="grid grid-cols-2 gap-1.5 bg-clover-50 p-1.5 rounded-2xl mb-6 border border-clover-100">
+                <button type="button" id="tab-login" onclick="switchAuthTab('login')" class="py-2.5 text-sm font-semibold rounded-xl bg-white text-clover-700 shadow-sm transition-all">
+                    Masuk Akun
+                </button>
+                <button type="button" id="tab-register" onclick="switchAuthTab('register')" class="py-2.5 text-sm font-semibold rounded-xl text-slate-500 hover:text-clover-700 transition-all">
+                    Daftar Baru
+                </button>
+            </div>
+
+            <!-- Form Login -->
+            <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Email atau ID Akun</label>
+                    <input type="text" id="login-identifier" required placeholder="contoh: budi@gmail.com atau @budi"
+                        class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white transition-all">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Kata Sandi</label>
+                    <input type="password" id="login-password" required placeholder="Masukkan kata sandi"
+                        class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white transition-all">
+                </div>
+                <button type="submit" id="btn-login-submit"
+                    class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-clover-500 to-clover-600 hover:from-clover-600 hover:to-clover-700 text-white font-semibold text-sm shadow-lg shadow-clover-500/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                    <span>Masuk ke Peta UMKM</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                </button>
+            </form>
+
+            <!-- Form Daftar Akun -->
+            <form id="form-register" onsubmit="handleRegister(event)" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Alamat Email</label>
+                    <input type="email" id="reg-email" oninput="previewGeneratedId()" required placeholder="nama@email.com"
+                        class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white transition-all">
+                    <div class="mt-2 flex items-center justify-between px-3 py-1.5 rounded-lg bg-clover-50 border border-clover-100">
+                        <span class="text-xs text-clover-700">ID Otomatis Anda:</span>
+                        <span id="reg-id-preview" class="text-xs font-bold text-clover-700 font-mono">@...</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Buat Kata Sandi</label>
+                    <input type="password" id="reg-password" required minlength="3" placeholder="Minimal 3 karakter"
+                        class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white transition-all">
+                </div>
+                <button type="submit" id="btn-reg-submit"
+                    class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-clover-500 to-clover-600 hover:from-clover-600 hover:to-clover-700 text-white font-semibold text-sm shadow-lg shadow-clover-500/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                    <span>Daftar & Mulai Memetakan</span>
+                </button>
+            </form>
+
+            <p class="text-[11px] text-center text-slate-400 mt-6">
+                Setiap daun membawa keberuntungan bagi UMKM lokal 🍀
+            </p>
+        </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- 2. ANTARMUKA UTAMA PETA (TERLIHAT SETELAH LOGIN)                       -->
+    <!-- ===================================================================== -->
+    <main id="app-screen" class="hidden relative w-full h-full">
+        
+        <!-- KANVAS PETA LEAFLET -->
+        <div id="map" class="w-full h-full z-0"></div>
+
+        <!-- INDIKATOR ANIMASI LONG-PRESS CLOVER (Muncul saat menahan peta 0.6s) -->
+        <div id="long-press-indicator" class="fixed pointer-events-none z-[1200] hidden -translate-x-1/2 -translate-y-1/2">
+            <div class="relative w-16 h-16 flex items-center justify-center">
+                <svg class="w-16 h-16" viewBox="0 0 56 56">
+                    <circle cx="28" cy="28" r="24" stroke="#d1fae5" stroke-width="4" fill="rgba(255,255,255,0.85)" />
+                    <circle class="long-press-circle" cx="28" cy="28" r="24" stroke="#10b981" stroke-width="4" fill="none" stroke-linecap="round" />
+                </svg>
+                <!-- Ikon Clover Mini di Tengah Lingkaran -->
+                <svg class="w-6 h-6 text-clover-600 absolute animate-pulse" viewBox="0 0 100 100" fill="currentColor">
+                    <path d="M50 50 C34 22, 6 28, 24 50 C6 72, 34 78, 50 50 Z"/>
+                    <path d="M50 50 C66 22, 94 28, 76 50 C94 72, 66 78, 50 50 Z"/>
+                    <path d="M50 50 C22 34, 28 6, 50 24 C72 6, 78 34, 50 50 Z"/>
+                    <path d="M50 50 C22 66, 28 94, 50 76 C72 94, 78 66, 50 50 Z"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- TARGET BIDIK TENGAH LAYAR (Crosshair Halus untuk Referensi Penempatan Pin) -->
+        <div id="center-reticle" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-[800] opacity-70 transition-opacity">
+            <div class="relative flex items-center justify-center">
+                <div class="w-8 h-8 rounded-full border-2 border-dashed border-clover-600/70 bg-clover-500/10 flex items-center justify-center">
+                    <div class="w-1.5 h-1.5 rounded-full bg-clover-600"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HEADER & BILAH PENCARIAN MENGAMBANG (ATAS) -->
+        <header class="fixed top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 z-[1000] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pointer-events-none">
+            
+            <!-- Kiri: Brand, Search Lokasi MapTiler & Tombol Direktori -->
+            <div class="flex items-center gap-2 pointer-events-auto w-full sm:max-w-xl">
+                <!-- Tombol Buka Direktori UMKM -->
+                <button onclick="toggleDirectoryDrawer(true)" title="Daftar Direktori UMKM"
+                    class="flex items-center gap-2 bg-white/95 backdrop-blur-md hover:bg-clover-50 text-slate-800 px-3.5 py-2.5 rounded-2xl shadow-lg shadow-slate-900/10 border border-clover-100 transition-all shrink-0 active:scale-95">
+                    <div class="w-7 h-7 rounded-xl bg-clover-500 text-white flex items-center justify-center">
+                        <svg class="w-4 h-4" viewBox="0 0 100 100" fill="currentColor">
+                            <path d="M50 50 C34 22, 6 28, 24 50 C6 72, 34 78, 50 50 Z"/>
+                            <path d="M50 50 C66 22, 94 28, 76 50 C94 72, 66 78, 50 50 Z"/>
+                            <path d="M50 50 C22 34, 28 6, 50 24 C72 6, 78 34, 50 50 Z"/>
+                            <path d="M50 50 C22 66, 28 94, 50 76 C72 94, 78 66, 50 50 Z"/>
+                        </svg>
+                    </div>
+                    <div class="text-left hidden md:block">
+                        <div class="text-xs font-extrabold font-display text-slate-800 leading-none">CloverMap</div>
+                        <div class="text-[10px] font-medium text-clover-600 mt-0.5"><span id="total-umkm-badge">0</span> UMKM</div>
+                    </div>
+                    <span class="md:hidden text-xs font-bold text-clover-700 bg-clover-100 px-2 py-0.5 rounded-full" id="total-umkm-badge-mobile">0</span>
+                </button>
+
+                <!-- Input Pencarian Alamat/Lokasi (MapTiler Geocoding API) -->
+                <div class="relative flex-1">
+                    <div class="flex items-center bg-white/95 backdrop-blur-md rounded-2xl shadow-lg shadow-slate-900/10 border border-clover-100 px-3.5 py-2 focus-within:ring-2 focus-within:ring-clover-500 transition-all">
+                        <svg class="w-4 h-4 text-clover-600 shrink-0 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input type="text" id="map-search-input" oninput="handleMapSearchInput(this.value)" placeholder="Cari jalan, area, atau alamat..."
+                            class="w-full bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none">
+                        <button id="clear-search-btn" onclick="clearMapSearch()" class="hidden text-slate-400 hover:text-slate-600 p-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <!-- Dropdown Hasil Geocoding -->
+                    <div id="map-search-results" class="hidden absolute top-full left-0 right-0 mt-2 bg-white/98 backdrop-blur-md rounded-2xl shadow-xl border border-clover-100 overflow-hidden max-h-64 overflow-y-auto z-[1100]"></div>
+                </div>
+            </div>
+
+            <!-- Kanan: Info User Aktif, Preset Admin (Tersembunyi) & Logout -->
+            <div class="flex items-center justify-end gap-2 pointer-events-auto">
+                <!-- Lencana Admin (Wajib tersembunyi dari UI pengguna biasa dengan class hidden) -->
+                <span id="admin-mode-badge" class="hidden px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold">
+                    Admin Mode
+                </span>
+
+                <div class="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-lg shadow-slate-900/10 border border-clover-100">
+                    <div class="w-7 h-7 rounded-full bg-clover-100 text-clover-700 font-bold text-xs flex items-center justify-center uppercase" id="user-avatar-initial">
+                        U
+                    </div>
+                    <span id="user-id-display" class="text-xs font-bold text-slate-700 font-mono">@user</span>
+                    <button onclick="handleLogout()" title="Keluar Akun"
+                        class="ml-1 p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- KONTROL LAYER PETA & GPS (KANAN TENGAH/BAWAH) -->
+        <div class="fixed right-3 sm:right-4 bottom-24 sm:bottom-28 z-[1000] flex flex-col items-end gap-2.5">
+            
+            <!-- Menu Pilihan Layer Peta (Popover) -->
+            <div id="layer-menu" class="hidden bg-white/95 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-clover-100 flex flex-col gap-1 w-44 mb-1">
+                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2.5 py-1">Gaya Peta MapTiler</div>
+                <button onclick="setMapLayer('aquarelle')" id="layer-btn-aquarelle" class="layer-opt-btn flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-clover-50 text-clover-700">
+                    <span>🎨 Aquarelle v4</span>
+                    <span class="w-2 h-2 rounded-full bg-clover-500"></span>
+                </button>
+                <button onclick="setMapLayer('streets')" id="layer-btn-streets" class="layer-opt-btn flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50">
+                    <span>🗺️ Streets v2</span>
+                    <span class="w-2 h-2 rounded-full bg-transparent"></span>
+                </button>
+                <button onclick="setMapLayer('hybrid')" id="layer-btn-hybrid" class="layer-opt-btn flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50">
+                    <span>🛰️ Satelit Hybrid</span>
+                    <span class="w-2 h-2 rounded-full bg-transparent"></span>
+                </button>
+            </div>
+
+            <!-- Tombol Toggle Layer -->
+            <button onclick="toggleLayerMenu()" title="Ganti Gaya Peta"
+                class="w-12 h-12 rounded-2xl bg-white/95 backdrop-blur-md hover:bg-clover-50 text-slate-700 shadow-lg shadow-slate-900/10 border border-clover-100 flex items-center justify-center transition-all active:scale-95">
+                <svg class="w-5 h-5 text-clover-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                </svg>
+            </button>
+
+            <!-- Tombol Lacak Lokasi Terkini (GPS Geolocation API ke posisi user sebenarnya) -->
+            <button onclick="locateUserGPS()" id="btn-gps-locate" title="Lacak Lokasi Terkini Saya (GPS)"
+                class="group flex items-center gap-2 h-12 px-3.5 rounded-2xl bg-white/95 backdrop-blur-md hover:bg-clover-50 text-slate-800 shadow-lg shadow-slate-900/10 border border-clover-100 transition-all active:scale-95">
+                <svg id="gps-icon" class="w-5 h-5 text-sky-600 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+                </svg>
+                <span class="text-xs font-bold text-slate-700 hidden sm:inline">Lacak Lokasi Terkini</span>
+            </button>
+
+            <!-- Tombol Opsi Terpisah: Kembali ke Pusat Kota Malang -->
+            <button onclick="flyToMalang()" title="Pusatkan ke Kota Malang"
+                class="w-12 h-12 rounded-2xl bg-white/95 backdrop-blur-md hover:bg-clover-50 text-clover-700 shadow-lg shadow-slate-900/10 border border-clover-100 flex flex-col items-center justify-center transition-all active:scale-95">
+                <span class="text-[10px] font-extrabold leading-none">MLG</span>
+                <span class="text-[8px] text-slate-400 mt-0.5">Default</span>
+            </button>
+        </div>
+
+        <!-- BILAH AKSI BAWAH: TOMBOL LETAKKAN PIN DI TENGAH LAYAR + PETUNJUK LONG PRESS -->
+        <div class="fixed bottom-4 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-[1000] flex flex-col items-center gap-2 pointer-events-none">
+            <div class="pointer-events-auto flex items-center gap-2 w-full sm:w-auto justify-center">
+                <button onclick="placePinAtCenter()"
+                    class="w-full sm:w-auto flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-clover-500 to-clover-600 hover:from-clover-600 hover:to-clover-700 text-white font-bold text-sm shadow-xl shadow-clover-600/30 border border-clover-400/40 active:scale-95 transition-all">
+                    <svg class="w-5 h-5 text-clover-100" viewBox="0 0 100 100" fill="currentColor">
+                        <path d="M50 50 C34 22, 6 28, 24 50 C6 72, 34 78, 50 50 Z"/>
+                        <path d="M50 50 C66 22, 94 28, 76 50 C94 72, 66 78, 50 50 Z"/>
+                        <path d="M50 50 C22 34, 28 6, 50 24 C72 6, 78 34, 50 50 Z"/>
+                        <path d="M50 50 C22 66, 28 94, 50 76 C72 94, 78 66, 50 50 Z"/>
+                    </svg>
+                    <span>Letakkan Pin di Tengah Layar</span>
+                </button>
+            </div>
+            <div class="bg-white/90 backdrop-blur-md px-3.5 py-1 rounded-full shadow-sm border border-clover-100 text-[11px] font-medium text-slate-600 text-center">
+                💡 Tips: Tekan & tahan <span class="font-semibold text-clover-700">0,6 detik</span> di mana saja pada peta untuk menandai UMKM
+            </div>
+        </div>
+    </main>
+
+    <!-- ===================================================================== -->
+    <!-- 3. DRAWER DIREKTORI UMKM (SIDEBAR SAMPING)                            -->
+    <!-- ===================================================================== -->
+    <aside id="directory-drawer" class="fixed inset-0 z-[2000] hidden">
+        <!-- Backdrop -->
+        <div onclick="toggleDirectoryDrawer(false)" class="absolute inset-0 bg-slate-900/30 backdrop-blur-xs transition-opacity"></div>
+        
+        <!-- Konten Drawer -->
+        <div class="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col border-r border-clover-100 z-10">
+            <!-- Header Drawer -->
+            <div class="p-5 bg-gradient-to-br from-clover-50 to-white border-b border-clover-100 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-2xl bg-clover-500 text-white flex items-center justify-center shadow-md shadow-clover-500/20">
+                        <svg class="w-6 h-6" viewBox="0 0 100 100" fill="currentColor">
+                            <path d="M50 50 C34 22, 6 28, 24 50 C6 72, 34 78, 50 50 Z"/>
+                            <path d="M50 50 C66 22, 94 28, 76 50 C94 72, 66 78, 50 50 Z"/>
+                            <path d="M50 50 C22 34, 28 6, 50 24 C72 6, 78 34, 50 50 Z"/>
+                            <path d="M50 50 C22 66, 28 94, 50 76 C72 94, 78 66, 50 50 Z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="font-display font-extrabold text-lg text-slate-800">Direktori UMKM</h2>
+                        <p class="text-xs text-slate-500">Tersinkronisasi realtime • <span id="drawer-count" class="font-bold text-clover-600">0</span> titik</p>
+                    </div>
+                </div>
+                <button onclick="toggleDirectoryDrawer(false)" class="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Filter & Pencarian Direktori -->
+            <div class="p-4 border-b border-slate-100 space-y-2.5 bg-white">
+                <div class="relative">
+                    <input type="text" id="directory-search" oninput="renderDirectoryList()" placeholder="Cari nama UMKM, alamat, atau patokan..."
+                        class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white">
+                    <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+                <div class="flex items-center gap-2 overflow-x-auto pb-1">
+                    <button onclick="setDirectoryFilter('all')" id="filter-all" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-clover-600 text-white shrink-0 transition-all">
+                        Semua UMKM
+                    </button>
+                    <button onclick="setDirectoryFilter('qris')" id="filter-qris" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-clover-50 text-clover-700 hover:bg-clover-100 shrink-0 transition-all">
+                        💳 Mendukung QRIS
+                    </button>
+                    <button onclick="setDirectoryFilter('mine')" id="filter-mine" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-clover-50 text-clover-700 hover:bg-clover-100 shrink-0 transition-all">
+                        🍀 Pin Saya
+                    </button>
+                </div>
+            </div>
+
+            <!-- Daftar Kartu UMKM -->
+            <div id="directory-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+                <!-- Diisi secara dinamis oleh JavaScript -->
+            </div>
+        </div>
+    </aside>
+
+    <!-- ===================================================================== -->
+    <!-- 4. MODAL FORMULIR TAMBAH / EDIT UMKM                                  -->
+    <!-- ===================================================================== -->
+    <div id="umkm-form-modal" class="fixed inset-0 z-[3000] hidden flex items-center justify-center p-4">
+        <div onclick="closeUmkmFormModal()" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"></div>
+        
+        <div class="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-clover-100 overflow-hidden z-10 max-h-[90vh] flex flex-col">
+            <!-- Header Modal -->
+            <div class="px-6 py-4 bg-gradient-to-r from-clover-50 to-emerald-50 border-b border-clover-100 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-clover-500 text-white flex items-center justify-center shadow-sm">
+                        <svg class="w-5 h-5" viewBox="0 0 100 100" fill="currentColor">
+                            <path d="M50 50 C34 22, 6 28, 24 50 C6 72, 34 78, 50 50 Z"/>
+                            <path d="M50 50 C66 22, 94 28, 76 50 C94 72, 66 78, 50 50 Z"/>
+                            <path d="M50 50 C22 34, 28 6, 50 24 C72 6, 78 34, 50 50 Z"/>
+                            <path d="M50 50 C22 66, 28 94, 50 76 C72 94, 78 66, 50 50 Z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 id="form-modal-title" class="font-display font-bold text-base sm:text-lg text-slate-800">Tambah Titik UMKM Baru</h3>
+                        <p id="form-coords-subtitle" class="text-[11px] font-mono text-clover-700">Koordinat: -7.97398, 112.62168</p>
+                    </div>
+                </div>
+                <button onclick="closeUmkmFormModal()" class="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-white/80 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Isi Formulir -->
+            <form id="umkm-data-form" onsubmit="saveUmkmData(event)" class="p-6 overflow-y-auto space-y-4">
+                <input type="hidden" id="umkm-edit-id">
+                <input type="hidden" id="umkm-lat">
+                <input type="hidden" id="umkm-lng">
+
+                <!-- 1. Nama UMKM -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">1. Nama UMKM <span class="text-rose-500">*</span></label>
+                    <input type="text" id="umkm-name" required placeholder="Contoh: Warung Kopi Clover & Roti Bakar"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white">
+                </div>
+
+                <!-- 2. Lokasi / Alamat Lengkap -->
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-xs font-bold text-slate-700">2. Lokasi / Alamat Lengkap <span class="text-rose-500">*</span></label>
+                        <span id="geocode-loading-badge" class="hidden text-[10px] font-semibold text-clover-600 animate-pulse">Mendapatkan alamat otomatis...</span>
+                    </div>
+                    <textarea id="umkm-address" rows="2" required placeholder="Alamat lengkap lokasi UMKM..."
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white"></textarea>
+                </div>
+
+                <!-- 3. Acuan Lokasi -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">3. Acuan Lokasi (Patokan Sekitar)</label>
+                    <input type="text" id="umkm-landmark" placeholder="Contoh: Sebelah Alfamart / Depan gerbang utama kampus"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white">
+                </div>
+
+                <!-- 4 & 5. Grid Telepon/WA & Ketersediaan QRIS -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">4. Telepon / WhatsApp</label>
+                        <input type="tel" id="umkm-phone" placeholder="Contoh: 081234567890"
+                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">5. Ketersediaan QRIS</label>
+                        <select id="umkm-qris" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white">
+                            <option value="Ya">✅ Ya (Tersedia QRIS)</option>
+                            <option value="Tidak">❌ Tidak (Tunai / Transfer)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 6. Media Sosial -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">6. Media Sosial (Instagram / TikTok / dll)</label>
+                    <input type="text" id="umkm-social" placeholder="Contoh: IG @kopi.clover / TikTok @kopiclover"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white">
+                </div>
+
+                <!-- 7. Marketplace Online -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">7. Marketplace Online (Shopee / Tokopedia / GoFood / GrabFood)</label>
+                    <input type="text" id="umkm-marketplace" placeholder="Contoh: GoFood & ShopeeFood: Warung Kopi Clover"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-clover-500 focus:bg-white">
+                </div>
+
+                <!-- Tombol Aksi Modal -->
+                <div class="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-100">
+                    <button type="button" onclick="closeUmkmFormModal()"
+                        class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                        Batal
+                    </button>
+                    <button type="submit" id="btn-save-umkm"
+                        class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-clover-500 to-clover-600 hover:from-clover-600 hover:to-clover-700 text-white font-bold text-sm shadow-lg shadow-clover-500/25 active:scale-95 transition-all">
+                        Simpan Data UMKM
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- 5. MODAL DETAIL PIN UMKM & KONTROL RBAC (EDIT / HAPUS PEMILIK)        -->
+    <!-- ===================================================================== -->
+    <div id="umkm-detail-modal" class="fixed inset-0 z-[3000] hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div onclick="closeUmkmDetailModal()" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"></div>
+        
+        <div class="relative w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-clover-100 overflow-hidden z-10 max-h-[88vh] flex flex-col">
+            <!-- Header Detail -->
+            <div class="p-5 bg-gradient-to-br from-clover-500 to-clover-700 text-white relative">
+                <button onclick="closeUmkmDetailModal()" class="absolute top-4 right-4 p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+                <div class="flex items-center gap-2 mb-2">
+                    <span id="detail-qris-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white text-clover-700">
+                        QRIS Tersedia
+                    </span>
+                    <span id="detail-owner-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-clover-900/40 text-clover-100">
+                        oleh @user
+                    </span>
+                </div>
+                <h3 id="detail-name" class="font-display font-extrabold text-xl leading-snug pr-8">Nama UMKM</h3>
+                <p id="detail-coords" class="text-[11px] font-mono text-clover-100 mt-1">-7.97398, 112.62168</p>
+            </div>
+
+            <!-- Konten Detail -->
+            <div class="p-5 overflow-y-auto space-y-3.5 text-sm">
+                <!-- Alamat -->
+                <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">📍 Alamat Lengkap</div>
+                    <p id="detail-address" class="text-slate-700 font-medium leading-relaxed">-</p>
+                </div>
+
+                <!-- Acuan Lokasi -->
+                <div class="p-3 rounded-2xl bg-clover-50/60 border border-clover-100">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-clover-700 mb-0.5">🧭 Acuan / Patokan Lokasi</div>
+                    <p id="detail-landmark" class="text-slate-700 font-medium">-</p>
+                </div>
+
+                <!-- Telepon / WA -->
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                    <div>
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">📞 Telepon / WhatsApp</div>
+                        <p id="detail-phone" class="text-slate-800 font-semibold mt-0.5">-</p>
+                    </div>
+                    <a id="detail-wa-btn" href="#" target="_blank" rel="noopener noreferrer"
+                        class="hidden px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition-all items-center gap-1.5">
+                        <span>Chat WA</span>
+                    </a>
+                </div>
+
+                <!-- Media Sosial & Marketplace -->
+                <div class="grid grid-cols-1 gap-2.5">
+                    <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">📱 Media Sosial</div>
+                        <p id="detail-social" class="text-slate-700 font-medium">-</p>
+                    </div>
+                    <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">🛍️ Marketplace Online</div>
+                        <p id="detail-marketplace" class="text-slate-700 font-medium">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Aksi Detail: Navigasi + RBAC Edit/Hapus -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                <a id="detail-gmaps-link" href="#" target="_blank" rel="noopener noreferrer"
+                    class="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-colors">
+                    Buka Rute Maps ↗
+                </a>
+
+                <!-- Kontainer Tombol RBAC (Hanya tampil jika pemilik pin atau preset admin) -->
+                <div id="detail-owner-actions" class="hidden flex items-center gap-2">
+                    <button type="button" id="btn-detail-edit"
+                        class="px-4 py-2.5 rounded-xl bg-clover-100 hover:bg-clover-200 text-clover-800 text-xs font-bold transition-colors">
+                        ✏️ Edit
+                    </button>
+                    <button type="button" id="btn-detail-delete"
+                        class="px-4 py-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold transition-colors">
+                        🗑️ Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- 6. MODAL KONFIRMASI HAPUS (Pengganti confirm() Bawaan Browser)        -->
+    <!-- ===================================================================== -->
+    <div id="confirm-delete-modal" class="fixed inset-0 z-[4000] hidden flex items-center justify-center p-4">
+        <div onclick="closeDeleteConfirmModal()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs"></div>
+        <div class="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-rose-100 p-6 text-center z-10">
+            <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </div>
+            <h4 class="font-display font-bold text-lg text-slate-800">Hapus Pin UMKM?</h4>
+            <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                Data <span id="delete-target-name" class="font-bold text-slate-700">UMKM ini</span> akan dihapus secara permanen dari peta untuk semua pengguna.
+            </p>
+            <div class="grid grid-cols-2 gap-2.5 mt-5">
+                <button type="button" onclick="closeDeleteConfirmModal()" class="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors">
+                    Batal
+                </button>
+                <button type="button" id="btn-confirm-delete-exec" class="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/25 transition-colors">
+                    Ya, Hapus Permanen
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- LOGIKA JAVASCRIPT APLIKASI CLOVERMAP UMKM                             -->
+    <!-- ===================================================================== -->
+    <script>
+        /**
+         * ===================================================================
+         * 1. KONFIGURASI FIREBASE REALTIME DATABASE & MAPTILER API
+         * ===================================================================
+         */
+        const firebaseConfig = {
+            apiKey: "AIzaSyBVUbFdWkj9K3xloNEqTLr505wc-Rr-BkA",
+            projectId: "issic-mattress",
+            databaseURL: "https://issic-mattress-default-rtdb.asia-southeast1.firebasedatabase.app"
+        };
+
+        // Inisialisasi Firebase secara tersembunyi di latar belakang
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const usersRef = db.ref('umkm_clover_map/users');
+        const pinsRef = db.ref('umkm_clover_map/pins');
+
+        // Konfigurasi MapTiler API & Koordinat Default Kota Malang
+        const MAPTILER_KEY = "OCFVmF5HJNxP0EZyXm4e";
+        const MALANG_COORDS = [-7.97398, 112.62168];
+        const DEFAULT_ZOOM = 16;
+
+        // Preset Admin Tersembunyi dalam Kode (Tidak tampil di UI pengguna biasa)
+        const PRESET_ADMIN_IDS = ['@admin', '@superadmin', '@kotoha_admin'];
+
+        /**
+         * ===================================================================
+         * 2. STATE GLOBAL APLIKASI
+         * ===================================================================
+         */
+        let currentUser = null;          // { id: '@abc', cleanId: 'abc', email: 'abc@gmail.com', role: 'user' | 'admin' }
+        let map = null;                  // Instance Leaflet Map
+        let tileLayers = {};             // Layer MapTiler (aquarelle, streets, hybrid)
+        let currentLayerKey = 'aquarelle';
+        let allPinsData = {};            // Cache realtime objek pin dari Firebase
+        let markersMap = {};             // Referensi marker Leaflet berdasarkan pinId
+        let userGpsMarker = null;        // Marker posisi GPS pengguna saat ini
+        let userGpsAccuracyCircle = null;
+        let currentDirectoryFilter = 'all';
+        let activeDetailPinId = null;
+        let searchDebounceTimer = null;
+
+        /**
+         * ===================================================================
+         * 3. SISTEM NOTIFIKASI TOAST (PENGGANTI ALERT)
+         * ===================================================================
+         */
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const styles = {
+                success: 'bg-clover-600 text-white border-clover-500',
+                error: 'bg-rose-600 text-white border-rose-500',
+                warning: 'bg-amber-500 text-white border-amber-400',
+                info: 'bg-slate-800 text-white border-slate-700'
+            };
+
+            const icons = {
+                success: '🍀',
+                error: '⚠️',
+                warning: '🔔',
+                info: 'ℹ️'
+            };
+
+            toast.className = `${styles[type] || styles.info} px-4 py-3 rounded-2xl shadow-xl border text-xs sm:text-sm font-semibold flex items-center gap-2.5 transform transition-all duration-300 translate-y-[-12px] opacity-0 pointer-events-auto max-w-full`;
+            toast.innerHTML = `<span>${icons[type] || '🍀'}</span><span class="leading-snug">${escapeHtml(message)}</span>`;
+            
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-[-12px]', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-[-12px]', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3400);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        /**
+         * ===================================================================
+         * 4. AUTENTIKASI & MANAJEMEN AKUN (LOGIN / REGISTER / SESSION)
+         * ===================================================================
+         */
+        function switchAuthTab(tab) {
+            const tabLogin = document.getElementById('tab-login');
+            const tabReg = document.getElementById('tab-register');
+            const formLogin = document.getElementById('form-login');
+            const formReg = document.getElementById('form-register');
+
+            if (tab === 'login') {
+                tabLogin.className = 'py-2.5 text-sm font-semibold rounded-xl bg-white text-clover-700 shadow-sm transition-all';
+                tabReg.className = 'py-2.5 text-sm font-semibold rounded-xl text-slate-500 hover:text-clover-700 transition-all';
+                formLogin.classList.remove('hidden');
+                formReg.classList.add('hidden');
+            } else {
+                tabReg.className = 'py-2.5 text-sm font-semibold rounded-xl bg-white text-clover-700 shadow-sm transition-all';
+                tabLogin.className = 'py-2.5 text-sm font-semibold rounded-xl text-slate-500 hover:text-clover-700 transition-all';
+                formReg.classList.remove('hidden');
+                formLogin.classList.add('hidden');
+            }
+        }
+
+        function extractCleanIdFromEmail(emailOrId) {
+            let raw = emailOrId.trim().toLowerCase();
+            if (raw.includes('@') && !raw.startsWith('@')) {
+                raw = raw.split('@')[0];
+            } else if (raw.startsWith('@')) {
+                raw = raw.substring(1);
+            }
+            // Sanitasi karakter agar valid sebagai key Firebase Realtime Database
+            return raw.replace(/[^a-z0-9_.-]/g, '_');
+        }
+
+        function previewGeneratedId() {
+            const emailVal = document.getElementById('reg-email').value;
+            const clean = extractCleanIdFromEmail(emailVal);
+            document.getElementById('reg-id-preview').textContent = clean ? `@${clean}` : '@...';
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const email = document.getElementById('reg-email').value.trim().toLowerCase();
+            const password = document.getElementById('reg-password').value;
+            const btn = document.getElementById('btn-reg-submit');
+
+            if (!email.includes('@')) {
+                showToast('Masukkan alamat email yang valid.', 'warning');
+                return;
+            }
+
+            const cleanId = extractCleanIdFromEmail(email);
+            if (!cleanId) {
+                showToast('Format email tidak dapat menghasilkan ID akun.', 'error');
+                return;
+            }
+
+            const formattedId = `@${cleanId}`;
+            btn.disabled = true;
+            btn.innerHTML = '<span>Memeriksa ID...</span>';
+
+            try {
+                // Validasi duplikasi ID di umkm_clover_map/users/{cleanId}
+                const snapshot = await usersRef.child(cleanId).once('value');
+                if (snapshot.exists()) {
+                    showToast(`Pendaftaran ditolak! ID "${formattedId}" sudah terdaftar. Gunakan email lain atau silakan Masuk.`, 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Daftar & Mulai Memetakan</span>';
+                    return;
+                }
+
+                // Tentukan role berdasarkan logika preset admin tersembunyi
+                const role = PRESET_ADMIN_IDS.includes(formattedId) ? 'admin' : 'user';
+
+                const newUser = {
+                    id: formattedId,
+                    cleanId: cleanId,
+                    email: email,
+                    password: password,
+                    role: role,
+                    createdAt: firebase.database.ServerValue.TIMESTAMP
+                };
+
+                await usersRef.child(cleanId).set(newUser);
+                
+                showToast(`Akun ${formattedId} berhasil dibuat! Selamat datang.`, 'success');
+                completeAuthSession(newUser);
+            } catch (err) {
+                console.error("Register error:", err);
+                showToast('Gagal terhubung ke server. Periksa koneksi internet Anda.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>Daftar & Mulai Memetakan</span>';
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const identifier = document.getElementById('login-identifier').value.trim().toLowerCase();
+            const password = document.getElementById('login-password').value;
+            const btn = document.getElementById('btn-login-submit');
+
+            const cleanId = extractCleanIdFromEmail(identifier);
+            if (!cleanId) {
+                showToast('Masukkan email atau ID akun yang valid.', 'warning');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span>Memverifikasi...</span>';
+
+            try {
+                const snapshot = await usersRef.child(cleanId).once('value');
+                if (!snapshot.exists()) {
+                    showToast(`Akun @${cleanId} tidak ditemukan. Silakan daftar terlebih dahulu.`, 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Masuk ke Peta UMKM</span>';
+                    return;
+                }
+
+                const userData = snapshot.val();
+                if (userData.password !== password) {
+                    showToast('Kata sandi salah! Silakan coba lagi.', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Masuk ke Peta UMKM</span>';
+                    return;
+                }
+
+                // Pastikan preset admin tetap sinkron di memori
+                if (PRESET_ADMIN_IDS.includes(userData.id)) {
+                    userData.role = 'admin';
+                }
+
+                showToast(`Selamat datang kembali, ${userData.id}!`, 'success');
+                completeAuthSession(userData);
+            } catch (err) {
+                console.error("Login error:", err);
+                showToast('Terjadi kesalahan saat masuk. Coba lagi.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>Masuk ke Peta UMKM</span>';
+            }
+        }
+
+        function completeAuthSession(userData) {
+            currentUser = {
+                id: userData.id,
+                cleanId: userData.cleanId,
+                email: userData.email,
+                role: userData.role || (PRESET_ADMIN_IDS.includes(userData.id) ? 'admin' : 'user')
+            };
+
+            // Simpan sesi login agar nyaman saat refresh
+            localStorage.setItem('clovermap_session', JSON.stringify(currentUser));
+
+            // Update tampilan header user
+            document.getElementById('user-id-display').textContent = currentUser.id;
+            document.getElementById('user-avatar-initial').textContent = currentUser.cleanId.charAt(0).toUpperCase();
+
+            // Pastikan fitur/lencana admin tetap disembunyikan dari tampilan pengguna biasa
+            const adminBadge = document.getElementById('admin-mode-badge');
+            adminBadge.classList.add('hidden');
+
+            // Alihkan tampilan ke Peta
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.remove('hidden');
+
+            // Inisialisasi Peta & Sinkronisasi Firebase Realtime
+            initMapIfNeeded();
+            startRealtimePinsSync();
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('clovermap_session');
+            currentUser = null;
+            document.getElementById('app-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('login-password').value = '';
+            showToast('Anda telah keluar dari akun.', 'info');
+        }
+
+        // Cek sesi tersimpan saat halaman dimuat
+        function checkSavedSession() {
+            try {
+                const saved = localStorage.getItem('clovermap_session');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && parsed.id && parsed.cleanId) {
+                        completeAuthSession(parsed);
+                        return;
+                    }
+                }
+            } catch (e) {
+                localStorage.removeItem('clovermap_session');
+            }
+            // Jika belum login, pastikan halaman Auth tampil pertama kali
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('app-screen').classList.add('hidden');
+        }
+
+        /**
+         * ===================================================================
+         * 5. INISIALISASI PETA LEAFLET, LAYER MAPTILER & GPS GEOLOCATION
+         * ===================================================================
+         */
+        function initMapIfNeeded() {
+            if (map) {
+                setTimeout(() => map.invalidateSize(), 150);
+                return;
+            }
+
+            // Definisi 3 Layer MapTiler
+            tileLayers = {
+                aquarelle: L.tileLayer(`https://api.maptiler.com/maps/aquarelle-v4/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
+                    attribution: '&copy; MapTiler &copy; OpenStreetMap',
+                    maxZoom: 20
+                }),
+                streets: L.tileLayer(`https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`, {
+                    attribution: '&copy; MapTiler &copy; OpenStreetMap',
+                    maxZoom: 20
+                }),
+                hybrid: L.tileLayer(`https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`, {
+                    attribution: '&copy; MapTiler &copy; OpenStreetMap',
+                    maxZoom: 20
+                })
+            };
+
+            // Inisialisasi Peta pada koordinat awal Kota Malang (-7.97398, 112.62168)
+            map = L.map('map', {
+                center: MALANG_COORDS,
+                zoom: DEFAULT_ZOOM,
+                layers: [tileLayers.aquarelle],
+                zoomControl: false // Pindahkan kontrol zoom atau gunakan gestur agar UI bersih
+            });
+
+            // Tambahkan kontrol zoom di kiri bawah
+            L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+            // Pasang interaksi Long-Press (tekan & tahan 0.6 detik) pada peta
+            setupMapLongPress();
+        }
+
+        function toggleLayerMenu() {
+            const menu = document.getElementById('layer-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        function setMapLayer(layerKey) {
+            if (!map || !tileLayers[layerKey] || currentLayerKey === layerKey) {
+                document.getElementById('layer-menu').classList.add('hidden');
+                return;
+            }
+
+            map.removeLayer(tileLayers[currentLayerKey]);
+            tileLayers[layerKey].addTo(map);
+            currentLayerKey = layerKey;
+
+            // Update status tombol UI layer
+            ['aquarelle', 'streets', 'hybrid'].forEach(key => {
+                const btn = document.getElementById(`layer-btn-${key}`);
+                const dot = btn.querySelector('span:last-child');
+                if (key === layerKey) {
+                    btn.className = 'layer-opt-btn flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-clover-50 text-clover-700';
+                    dot.className = 'w-2 h-2 rounded-full bg-clover-500';
+                } else {
+                    btn.className = 'layer-opt-btn flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50';
+                    dot.className = 'w-2 h-2 rounded-full bg-transparent';
+                }
+            });
+
+            document.getElementById('layer-menu').classList.add('hidden');
+        }
+
+        /**
+         * Fitur GPS Geolocation: Mendeteksi lokasi perangkat pengguna saat ini
+         * sebagai acuan peta (bukan kembali ke Kota Malang).
+         */
+        function locateUserGPS() {
+            if (!navigator.geolocation) {
+                showToast('Browser Anda tidak mendukung fitur pelacakan GPS.', 'error');
+                return;
+            }
+
+            const gpsIcon = document.getElementById('gps-icon');
+            gpsIcon.classList.add('animate-spin', 'text-clover-600');
+            showToast('Mendeteksi lokasi GPS perangkat Anda saat ini...', 'info');
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    gpsIcon.classList.remove('animate-spin', 'text-clover-600');
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+
+                    // Terbangkan peta ke lokasi GPS terkini pengguna
+                    map.flyTo([lat, lng], 17, { duration: 1.4 });
+
+                    // Hapus penanda GPS lama jika ada
+                    if (userGpsMarker) map.removeLayer(userGpsMarker);
+                    if (userGpsAccuracyCircle) map.removeLayer(userGpsAccuracyCircle);
+
+                    // Lingkaran akurasi GPS
+                    userGpsAccuracyCircle = L.circle([lat, lng], {
+                        radius: Math.min(accuracy, 150),
+                        color: '#10b981',
+                        fillColor: '#10b981',
+                        fillOpacity: 0.12,
+                        weight: 1
+                    }).addTo(map);
+
+                    // Penanda titik pengguna berdenyut biru/emerald
+                    const gpsDivIcon = L.divIcon({
+                        className: 'clover-div-icon',
+                        html: `
+                            <div class="relative flex items-center justify-center">
+                                <div class="user-gps-pulse"></div>
+                                <div class="user-gps-dot"></div>
+                            </div>
+                        `,
+                        iconSize: [18, 18],
+                        iconAnchor: [9, 9]
+                    });
+
+                    userGpsMarker = L.marker([lat, lng], { icon: gpsDivIcon, zIndexOffset: 1000 })
+                        .addTo(map)
+                        .bindPopup(`<div class="text-xs font-bold text-slate-800">📍 Lokasi Anda Saat Ini</div><div class="text-[10px] text-slate-500">Akurasi ±${Math.round(accuracy)} meter</div>`);
+
+                    showToast('Peta dipusatkan ke lokasi Anda saat ini!', 'success');
+                },
+                (error) => {
+                    gpsIcon.classList.remove('animate-spin', 'text-clover-600');
+                    let msg = 'Gagal mendeteksi lokasi terkini.';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        msg = 'Izin lokasi ditolak. Aktifkan izin GPS pada browser Anda.';
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        msg = 'Sinyal GPS tidak tersedia saat ini.';
+                    } else if (error.code === error.TIMEOUT) {
+                        msg = 'Waktu deteksi lokasi habis. Coba lagi.';
+                    }
+                    showToast(msg, 'error');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 12000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        function flyToMalang() {
+            if (!map) return;
+            map.flyTo(MALANG_COORDS, DEFAULT_ZOOM, { duration: 1.2 });
+            showToast('Peta dipusatkan ke Kota Malang.', 'info');
+        }
+
+        /**
+         * ===================================================================
+         * 6. PENCARIAN LOKASI & REVERSE GEOCODING (MAPTILER GEOCODING API)
+         * ===================================================================
+         */
+        function handleMapSearchInput(query) {
+            const clearBtn = document.getElementById('clear-search-btn');
+            const resultsBox = document.getElementById('map-search-results');
+
+            if (query.trim().length > 0) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+                resultsBox.classList.add('hidden');
+                return;
+            }
+
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                searchLocationMapTiler(query.trim());
+            }, 380);
+        }
+
+        async function searchLocationMapTiler(query) {
+            const resultsBox = document.getElementById('map-search-results');
+            try {
+                const center = map ? map.getCenter() : { lng: MALANG_COORDS[1], lat: MALANG_COORDS[0] };
+                const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&proximity=${center.lng},${center.lat}&language=id&limit=5`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (!data.features || data.features.length === 0) {
+                    resultsBox.innerHTML = `<div class="p-3.5 text-xs text-slate-400 text-center">Lokasi "${escapeHtml(query)}" tidak ditemukan.</div>`;
+                    resultsBox.classList.remove('hidden');
+                    return;
+                }
+
+                resultsBox.innerHTML = data.features.map(feat => {
+                    const [lng, lat] = feat.center;
+                    const placeName = feat.place_name_id || feat.place_name || feat.text;
+                    return `
+                        <button type="button" onclick="selectGeocodingResult(${lat}, ${lng}, '${escapeHtml(placeName).replace(/'/g, "\\'")}')"
+                            class="w-full text-left px-4 py-3 hover:bg-clover-50 border-b border-slate-100 last:border-none flex items-start gap-2.5 transition-colors">
+                            <span class="text-clover-600 mt-0.5">📍</span>
+                            <span class="text-xs font-medium text-slate-700 leading-snug">${escapeHtml(placeName)}</span>
+                        </button>
+                    `;
+                }).join('');
+                resultsBox.classList.remove('hidden');
+            } catch (err) {
+                console.error("Geocoding search error:", err);
+            }
+        }
+
+        function selectGeocodingResult(lat, lng, label) {
+            document.getElementById('map-search-results').classList.add('hidden');
+            document.getElementById('map-search-input').value = label;
+            map.flyTo([lat, lng], 17, { duration: 1.2 });
+        }
+
+        function clearMapSearch() {
+            document.getElementById('map-search-input').value = '';
+            document.getElementById('clear-search-btn').classList.add('hidden');
+            document.getElementById('map-search-results').classList.add('hidden');
+        }
+
+        // Reverse Geocoding untuk mengisi alamat otomatis di formulir UMKM
+        async function reverseGeocodeCoords(lat, lng) {
+            const badge = document.getElementById('geocode-loading-badge');
+            const addrInput = document.getElementById('umkm-address');
+            badge.classList.remove('hidden');
+
+            try {
+                const url = `https://api.maptiler.com/geocoding/${lng},${lat}.json?key=${MAPTILER_KEY}&language=id&limit=1`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.features && data.features.length > 0) {
+                    const placeName = data.features[0].place_name_id || data.features[0].place_name;
+                    addrInput.value = `${placeName} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+                } else {
+                    addrInput.value = `Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                }
+            } catch (e) {
+                addrInput.value = `Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            } finally {
+                badge.classList.add('hidden');
+            }
+        }
+
+        /**
+         * ===================================================================
+         * 7. INTERAKSI PENAMBAHAN PIN (LONG-PRESS 0.6s & TOMBOL TENGAH LAYAR)
+         * ===================================================================
+         */
+        function setupMapLongPress() {
+            const mapContainer = document.getElementById('map');
+            const indicator = document.getElementById('long-press-indicator');
+            let pressTimer = null;
+            let startX = 0;
+            let startY = 0;
+            let isPressing = false;
+
+            const startPress = (clientX, clientY) => {
+                isPressing = true;
+                startX = clientX;
+                startY = clientY;
+
+                // Tampilkan indikator lingkaran clover pada posisi sentuhan/kursor
+                indicator.style.left = `${clientX}px`;
+                indicator.style.top = `${clientY}px`;
+                indicator.classList.remove('hidden');
+                
+                // Paksa reflow untuk mereset animasi SVG stroke
+                void indicator.offsetWidth;
+                indicator.classList.add('long-press-active');
+
+                pressTimer = setTimeout(() => {
+                    if (!isPressing) return;
+                    cancelPress();
+
+                    // Konversi posisi pixel layar ke koordinat LatLng peta
+                    const rect = mapContainer.getBoundingClientRect();
+                    const point = L.point(clientX - rect.left, clientY - rect.top);
+                    const latlng = map.containerPointToLatLng(point);
+
+                    // Berikan getaran halus di perangkat mobile jika didukung
+                    if (navigator.vibrate) navigator.vibrate(40);
+
+                    openAddUmkmModal(latlng.lat, latlng.lng);
+                }, 600); // 0.6 detik
+            };
+
+            const cancelPress = () => {
+                isPressing = false;
+                clearTimeout(pressTimer);
+                indicator.classList.remove('long-press-active');
+                indicator.classList.add('hidden');
+            };
+
+            // Event Mouse Desktop
+            mapContainer.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return; // Hanya klik kiri
+                // Abaikan jika mengklik marker atau kontrol UI
+                if (e.target.closest('.leaflet-marker-icon') || e.target.closest('.leaflet-control')) return;
+                startPress(e.clientX, e.clientY);
+            });
+
+            mapContainer.addEventListener('mousemove', (e) => {
+                if (!isPressing) return;
+                if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) {
+                    cancelPress();
+                }
+            });
+
+            mapContainer.addEventListener('mouseup', cancelPress);
+            mapContainer.addEventListener('mouseleave', cancelPress);
+
+            // Event Touch Mobile
+            mapContainer.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 1) {
+                    cancelPress();
+                    return;
+                }
+                if (e.target.closest('.leaflet-marker-icon') || e.target.closest('.leaflet-control')) return;
+                const touch = e.touches[0];
+                startPress(touch.clientX, touch.clientY);
+            }, { passive: true });
+
+            mapContainer.addEventListener('touchmove', (e) => {
+                if (!isPressing || e.touches.length !== 1) return;
+                const touch = e.touches[0];
+                if (Math.hypot(touch.clientX - startX, touch.clientY - startY) > 12) {
+                    cancelPress();
+                }
+            }, { passive: true });
+
+            mapContainer.addEventListener('touchend', cancelPress);
+            mapContainer.addEventListener('touchcancel', cancelPress);
+        }
+
+        // Cara ke-2: Mengeklik tombol "Letakkan Pin di Tengah Layar"
+        function placePinAtCenter() {
+            if (!map) return;
+            const center = map.getCenter();
+            openAddUmkmModal(center.lat, center.lng);
+        }
+
+        /**
+         * ===================================================================
+         * 8. MODAL FORMULIR UMKM & CRUD FIREBASE REALTIME DATABASE
+         * ===================================================================
+         */
+        function openAddUmkmModal(lat, lng) {
+            document.getElementById('umkm-data-form').reset();
+            document.getElementById('umkm-edit-id').value = '';
+            document.getElementById('umkm-lat').value = lat;
+            document.getElementById('umkm-lng').value = lng;
+            document.getElementById('umkm-qris').value = 'Ya';
+
+            document.getElementById('form-modal-title').textContent = 'Tambah Titik UMKM Baru';
+            document.getElementById('form-coords-subtitle').textContent = `Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            document.getElementById('btn-save-umkm').textContent = 'Simpan Data UMKM';
+
+            document.getElementById('umkm-form-modal').classList.remove('hidden');
+
+            // Isi alamat otomatis menggunakan MapTiler Reverse Geocoding
+            reverseGeocodeCoords(lat, lng);
+        }
+
+        function openEditUmkmModal(pinId) {
+            const pin = allPinsData[pinId];
+            if (!pin) return;
+
+            // Validasi RBAC sebelum membuka form edit
+            if (!canUserModifyPin(pin)) {
+                showToast('Anda tidak memiliki izin untuk mengedit pin milik pengguna lain.', 'error');
+                return;
+            }
+
+            closeUmkmDetailModal();
+
+            document.getElementById('umkm-edit-id').value = pinId;
+            document.getElementById('umkm-lat').value = pin.lat;
+            document.getElementById('umkm-lng').value = pin.lng;
+            document.getElementById('umkm-name').value = pin.name || '';
+            document.getElementById('umkm-address').value = pin.address || '';
+            document.getElementById('umkm-landmark').value = pin.landmark || '';
+            document.getElementById('umkm-phone').value = pin.phone || '';
+            document.getElementById('umkm-qris').value = pin.qris || 'Tidak';
+            document.getElementById('umkm-social').value = pin.social || '';
+            document.getElementById('umkm-marketplace').value = pin.marketplace || '';
+
+            document.getElementById('form-modal-title').textContent = 'Edit Data UMKM';
+            document.getElementById('form-coords-subtitle').textContent = `Koordinat: ${Number(pin.lat).toFixed(6)}, ${Number(pin.lng).toFixed(6)}`;
+            document.getElementById('btn-save-umkm').textContent = 'Perbarui Data UMKM';
+
+            document.getElementById('umkm-form-modal').classList.remove('hidden');
+        }
+
+        function closeUmkmFormModal() {
+            document.getElementById('umkm-form-modal').classList.add('hidden');
+        }
+
+        async function saveUmkmData(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const editId = document.getElementById('umkm-edit-id').value;
+            const lat = parseFloat(document.getElementById('umkm-lat').value);
+            const lng = parseFloat(document.getElementById('umkm-lng').value);
+
+            const payload = {
+                name: document.getElementById('umkm-name').value.trim(),
+                address: document.getElementById('umkm-address').value.trim(),
+                landmark: document.getElementById('umkm-landmark').value.trim(),
+                phone: document.getElementById('umkm-phone').value.trim(),
+                qris: document.getElementById('umkm-qris').value,
+                social: document.getElementById('umkm-social').value.trim(),
+                marketplace: document.getElementById('umkm-marketplace').value.trim(),
+                lat: lat,
+                lng: lng,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            };
+
+            const btn = document.getElementById('btn-save-umkm');
+            btn.disabled = true;
+            btn.textContent = 'Menyimpan...';
+
+            try {
+                if (editId) {
+                    const existingPin = allPinsData[editId];
+                    if (!existingPin || !canUserModifyPin(existingPin)) {
+                        showToast('Akses ditolak.', 'error');
+                        return;
+                    }
+                    await pinsRef.child(editId).update(payload);
+                    showToast(`Data "${payload.name}" berhasil diperbarui!`, 'success');
+                } else {
+                    payload.ownerId = currentUser.id;
+                    payload.ownerCleanId = currentUser.cleanId;
+                    payload.createdAt = firebase.database.ServerValue.TIMESTAMP;
+
+                    const newRef = pinsRef.push();
+                    await newRef.set(payload);
+                    showToast(`Pin UMKM "${payload.name}" berhasil ditambahkan ke peta!`, 'success');
+                }
+
+                closeUmkmFormModal();
+            } catch (err) {
+                console.error("Save pin error:", err);
+                showToast('Gagal menyimpan data ke database.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = editId ? 'Perbarui Data UMKM' : 'Simpan Data UMKM';
+            }
+        }
+
+        /**
+         * ===================================================================
+         * 9. SINKRONISASI REALTIME FIREBASE & RENDER PIN CLOVER CUSTOM
+         * ===================================================================
+         */
+        let isPinsListenerAttached = false;
+
+        function startRealtimePinsSync() {
+            if (isPinsListenerAttached) return;
+            isPinsListenerAttached = true;
+
+            pinsRef.on('value', (snapshot) => {
+                allPinsData = snapshot.val() || {};
+                renderAllMapMarkers();
+                renderDirectoryList();
+                updateUmkmCounters();
+            });
+        }
+
+        function createCloverMarkerIcon(pin) {
+            const isMine = currentUser && pin.ownerId === currentUser.id;
+            const hasQris = pin.qris === 'Ya';
+
+            // Warna emerald/mint cerah terinspirasi Kotoha (Hakoniwalily)
+            const leafColor = isMine ? '#059669' : '#10b981';
+            const leafHighlight = isMine ? '#34d399' : '#6ee7b7';
+
+            const html = `
+                <div class="clover-pin-wrapper flex flex-col items-center cursor-pointer" style="width: 170px; margin-left: -85px; margin-top: -66px;">
+                    <!-- Label Nama UMKM Melayang di Atas Ikon Clover -->
+                    <div class="px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-xs border ${isMine ? 'border-clover-500 ring-2 ring-clover-200' : 'border-clover-200'} shadow-md flex items-center gap-1 max-w-[165px] mb-1">
+                        ${hasQris ? '<span class="w-2 h-2 rounded-full bg-clover-500 shrink-0" title="QRIS Tersedia"></span>' : ''}
+                        <span class="text-[11px] font-extrabold text-slate-800 truncate leading-tight">${escapeHtml(pin.name)}</span>
+                    </div>
+                    
+                    <!-- SVG Four-Leaf Clover Kustom -->
+                    <div class="relative w-10 h-10 flex items-center justify-center">
+                        <svg class="w-10 h-10" viewBox="0 0 100 100" fill="none">
+                            <!-- Batang Tangkai -->
+                            <path d="M50 52 Q53 78 45 94" stroke="#047857" stroke-width="5.5" stroke-linecap="round"/>
+                            <!-- 4 Helai Daun Hati Clover -->
+                            <path d="M50 50 C33 20, 4 27, 23 50 C4 73, 33 80, 50 50 Z" fill="${leafColor}" stroke="#ffffff" stroke-width="2.5"/>
+                            <path d="M50 50 C67 20, 96 27, 77 50 C96 73, 67 80, 50 50 Z" fill="${leafColor}" stroke="#ffffff" stroke-width="2.5"/>
+                            <path d="M50 50 C20 33, 27 4, 50 23 C73 4, 80 33, 50 50 Z" fill="${leafHighlight}" stroke="#ffffff" stroke-width="2.5"/>
+                            <path d="M50 50 C20 67, 27 96, 50 77 C73 96, 80 67, 50 50 Z" fill="${leafHighlight}" stroke="#ffffff" stroke-width="2.5"/>
+                            <!-- Titik Embun Tengah -->
+                            <circle cx="50" cy="50" r="5" fill="#ecfdf5"/>
+                        </svg>
+                    </div>
+                </div>
+            `;
+
+            return L.divIcon({
+                className: 'clover-div-icon',
+                html: html,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0]
+            });
+        }
+
+        function renderAllMapMarkers() {
+            if (!map) return;
+
+            const currentIds = new Set(Object.keys(allPinsData));
+
+            // Hapus marker yang sudah dihapus di Firebase
+            Object.keys(markersMap).forEach(existingId => {
+                if (!currentIds.has(existingId)) {
+                    map.removeLayer(markersMap[existingId]);
+                    delete markersMap[existingId];
+                }
+            });
+
+            // Tambah atau perbarui marker
+            currentIds.forEach(pinId => {
+                const pin = allPinsData[pinId];
+                if (!pin || typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return;
+
+                const icon = createCloverMarkerIcon(pin);
+
+                if (markersMap[pinId]) {
+                    markersMap[pinId].setLatLng([pin.lat, pin.lng]);
+                    markersMap[pinId].setIcon(icon);
+                } else {
+                    const marker = L.marker([pin.lat, pin.lng], { icon: icon }).addTo(map);
+                    marker.on('click', () => openUmkmDetailModal(pinId));
+                    markersMap[pinId] = marker;
+                }
+            });
+        }
+
+        function updateUmkmCounters() {
+            const count = Object.keys(allPinsData).length;
+            document.getElementById('total-umkm-badge').textContent = count;
+            document.getElementById('total-umkm-badge-mobile').textContent = count;
+            document.getElementById('drawer-count').textContent = count;
+        }
+
+        /**
+         * ===================================================================
+         * 10. DETAIL PIN UMKM & HAK AKSES (RBAC)
+         * ===================================================================
+         */
+        function canUserModifyPin(pin) {
+            if (!currentUser || !pin) return false;
+            // Pemilik asli pin atau logika preset admin tersembunyi
+            return pin.ownerId === currentUser.id || currentUser.role === 'admin' || PRESET_ADMIN_IDS.includes(currentUser.id);
+        }
+
+        function openUmkmDetailModal(pinId) {
+            const pin = allPinsData[pinId];
+            if (!pin) return;
+
+            activeDetailPinId = pinId;
+
+            document.getElementById('detail-name').textContent = pin.name || 'Tanpa Nama';
+            document.getElementById('detail-coords').textContent = `${Number(pin.lat).toFixed(6)}, ${Number(pin.lng).toFixed(6)}`;
+            document.getElementById('detail-owner-badge').textContent = `oleh ${pin.ownerId || '@anonim'}`;
+
+            const qrisBadge = document.getElementById('detail-qris-badge');
+            if (pin.qris === 'Ya') {
+                qrisBadge.textContent = '✅ QRIS Tersedia';
+                qrisBadge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white text-clover-700';
+            } else {
+                qrisBadge.textContent = '💵 Non-QRIS';
+                qrisBadge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-clover-800/60 text-clover-100';
+            }
+
+            document.getElementById('detail-address').textContent = pin.address || '-';
+            document.getElementById('detail-landmark').textContent = pin.landmark || 'Tidak ada catatan acuan lokasi';
+            document.getElementById('detail-phone').textContent = pin.phone || 'Tidak dicantumkan';
+            document.getElementById('detail-social').textContent = pin.social || 'Tidak dicantumkan';
+            document.getElementById('detail-marketplace').textContent = pin.marketplace || 'Tidak dicantumkan';
+
+            // Tombol Direct WhatsApp jika nomor telepon diisi
+            const waBtn = document.getElementById('detail-wa-btn');
+            if (pin.phone && pin.phone.replace(/\D/g, '').length >= 8) {
+                let cleanPhone = pin.phone.replace(/\D/g, '');
+                if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.substring(1);
+                waBtn.href = `https://wa.me/${cleanPhone}`;
+                waBtn.classList.remove('hidden');
+                waBtn.classList.add('inline-flex');
+            } else {
+                waBtn.classList.add('hidden');
+                waBtn.classList.remove('inline-flex');
+            }
+
+            // Link Google Maps Rute Eksternal
+            document.getElementById('detail-gmaps-link').href = `https://www.google.com/maps/dir/?api=1&destination=${pin.lat},${pin.lng}`;
+
+            // Kontrol RBAC: Tombol Edit & Hapus hanya tampil untuk pemilik pin (atau preset admin)
+            const ownerActions = document.getElementById('detail-owner-actions');
+            if (canUserModifyPin(pin)) {
+                ownerActions.classList.remove('hidden');
+                ownerActions.classList.add('flex');
+                document.getElementById('btn-detail-edit').onclick = () => openEditUmkmModal(pinId);
+                document.getElementById('btn-detail-delete').onclick = () => openDeleteConfirmModal(pinId);
+            } else {
+                ownerActions.classList.add('hidden');
+                ownerActions.classList.remove('flex');
+            }
+
+            document.getElementById('umkm-detail-modal').classList.remove('hidden');
+        }
+
+        function closeUmkmDetailModal() {
+            document.getElementById('umkm-detail-modal').classList.add('hidden');
+            activeDetailPinId = null;
+        }
+
+        function openDeleteConfirmModal(pinId) {
+            const pin = allPinsData[pinId];
+            if (!pin || !canUserModifyPin(pin)) return;
+
+            document.getElementById('delete-target-name').textContent = `"${pin.name}"`;
+            document.getElementById('btn-confirm-delete-exec').onclick = () => executeDeletePin(pinId);
+            document.getElementById('confirm-delete-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteConfirmModal() {
+            document.getElementById('confirm-delete-modal').classList.add('hidden');
+        }
+
+        async function executeDeletePin(pinId) {
+            const pin = allPinsData[pinId];
+            if (!pin || !canUserModifyPin(pin)) return;
+
+            try {
+                await pinsRef.child(pinId).remove();
+                closeDeleteConfirmModal();
+                closeUmkmDetailModal();
+                showToast(`Pin UMKM "${pin.name}" telah dihapus.`, 'info');
+            } catch (err) {
+                console.error("Delete pin error:", err);
+                showToast('Gagal menghapus pin UMKM.', 'error');
+            }
+        }
+
+        /**
+         * ===================================================================
+         * 11. DIREKTORI UMKM (DRAWER, PENCARIAN & FILTER)
+         * ===================================================================
+         */
+        function toggleDirectoryDrawer(open) {
+            const drawer = document.getElementById('directory-drawer');
+            if (open) {
+                renderDirectoryList();
+                drawer.classList.remove('hidden');
+            } else {
+                drawer.classList.add('hidden');
+            }
+        }
+
+        function setDirectoryFilter(filterType) {
+            currentDirectoryFilter = filterType;
+            ['all', 'qris', 'mine'].forEach(key => {
+                const btn = document.getElementById(`filter-${key}`);
+                if (key === filterType) {
+                    btn.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-clover-600 text-white shrink-0 transition-all';
+                } else {
+                    btn.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-clover-50 text-clover-700 hover:bg-clover-100 shrink-0 transition-all';
+                }
+            });
+            renderDirectoryList();
+        }
+
+        function renderDirectoryList() {
+            const container = document.getElementById('directory-list');
+            const query = (document.getElementById('directory-search').value || '').toLowerCase().trim();
+
+            const entries = Object.entries(allPinsData)
+                .map(([id, data]) => ({ id, ...data }))
+                .filter(pin => {
+                    if (currentDirectoryFilter === 'qris' && pin.qris !== 'Ya') return false;
+                    if (currentDirectoryFilter === 'mine' && (!currentUser || pin.ownerId !== currentUser.id)) return false;
+
+                    if (query) {
+                        const hay = `${pin.name} ${pin.address} ${pin.landmark} ${pin.ownerId}`.toLowerCase();
+                        return hay.includes(query);
+                    }
+                    return true;
+                })
+                .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+            if (entries.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 px-4">
+                        <div class="w-14 h-14 rounded-2xl bg-clover-100 text-clover-600 flex items-center justify-center mx-auto mb-3 text-2xl">🍀</div>
+                        <p class="text-sm font-bold text-slate-700">Belum ada UMKM ditemukan</p>
+                        <p class="text-xs text-slate-400 mt-1">Tekan & tahan di peta atau klik "Letakkan Pin di Tengah Layar" untuk menambahkan UMKM.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = entries.map(pin => {
+                const isMine = currentUser && pin.ownerId === currentUser.id;
+                return `
+                    <div onclick="flyToPinFromDirectory('${pin.id}')"
+                        class="p-4 rounded-2xl bg-white hover:bg-clover-50/60 border ${isMine ? 'border-clover-300' : 'border-slate-200/80'} shadow-xs cursor-pointer transition-all group">
+                        <div class="flex items-start justify-between gap-2">
+                            <h4 class="font-display font-bold text-sm text-slate-800 group-hover:text-clover-700 transition-colors leading-snug">
+                                ${escapeHtml(pin.name)}
+                            </h4>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${pin.qris === 'Ya' ? 'bg-clover-100 text-clover-700' : 'bg-slate-100 text-slate-500'}">
+                                ${pin.qris === 'Ya' ? 'QRIS' : 'Tunai'}
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1 line-clamp-2">${escapeHtml(pin.address)}</p>
+                        ${pin.landmark ? `<p class="text-[11px] text-clover-700 font-medium mt-1">🧭 ${escapeHtml(pin.landmark)}</p>` : ''}
+                        <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                            <span class="font-mono text-slate-400">${escapeHtml(pin.ownerId || '@user')} ${isMine ? '(Anda)' : ''}</span>
+                            <span class="font-bold text-clover-600 group-hover:translate-x-0.5 transition-transform">Lihat di Peta →</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function flyToPinFromDirectory(pinId) {
+            const pin = allPinsData[pinId];
+            if (!pin || !map) return;
+
+            toggleDirectoryDrawer(false);
+            map.flyTo([pin.lat, pin.lng], 18, { duration: 1.2 });
+            setTimeout(() => openUmkmDetailModal(pinId), 600);
+        }
+
+        // Jalankan pemeriksaan sesi saat halaman selesai dimuat
+        window.addEventListener('DOMContentLoaded', () => {
+            checkSavedSession();
+        });
+    </script>
+</body>
+</html>
