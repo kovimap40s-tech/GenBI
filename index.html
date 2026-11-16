@@ -63,9 +63,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-    <!-- Google Identity Services (GIS) untuk OAuth Scope Google Drive -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-
     <style>
         /* Kustomisasi Scrollbar Lembut */
         ::-webkit-scrollbar {
@@ -258,12 +255,12 @@
                 <div class="flex items-start justify-between gap-2">
                     <div class="font-bold flex items-center gap-1.5">
                         <span>🔐</span>
-                        <span>Aktifkan Server Lokal / HTTPS untuk Login Google</span>
+                        <span>Gunakan Server Lokal / HTTPS untuk Login Google</span>
                     </div>
                     <button type="button" onclick="document.getElementById('google-oauth-domain-notice').classList.add('hidden')" class="text-amber-600 hover:text-amber-800 font-bold">✕</button>
                 </div>
                 <p id="google-oauth-notice-detail" class="text-[11px] leading-relaxed text-amber-800">
-                    Google OAuth memblokir protokol <code class="font-mono bg-amber-100 px-1 rounded">file://</code>. Jalankan file ini melalui <code class="font-mono bg-amber-100 px-1 rounded">http://localhost</code> (misal VS Code Live Server / <code class="font-mono bg-amber-100 px-1 rounded">npx serve</code>) atau hosting HTTPS, lalu pastikan domain tersebut terdaftar di <strong>Firebase Console &rarr; Authentication &rarr; Settings &rarr; Authorized domains</strong>.
+                    Google OAuth menolak protokol <code class="font-mono bg-amber-100 px-1 rounded">file://</code>. Buka aplikasi ini via <code class="font-mono bg-amber-100 px-1 rounded">http://localhost</code> (VS Code Live Server / <code class="font-mono bg-amber-100 px-1 rounded">npx serve</code>) atau GitHub Pages Anda (<code class="font-mono bg-amber-100 px-1 rounded">kovimap40s-tech.github.io</code>).
                 </p>
             </div>
 
@@ -387,7 +384,7 @@
                     </span>
 
                     <div class="flex items-center gap-2 bg-clover-50/70 px-3 py-1.5 rounded-2xl border border-clover-100">
-                        <div class="w-6 h-6 rounded-full bg-clover-500 text-white font-bold text-[11px] flex items-center justify-center uppercase" id="user-avatar-initial">
+                        <div class="w-6 h-6 rounded-full bg-clover-500 text-white font-bold text-[11px] flex items-center justify-center uppercase overflow-hidden" id="user-avatar-initial">
                             U
                         </div>
                         <span id="user-id-display" class="text-xs font-bold text-slate-700 font-mono">@user</span>
@@ -677,7 +674,7 @@
                         <button type="button" id="btn-connect-gdrive-auth" onclick="openDriveBridgeConfigModal()"
                             class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-clover-50 hover:bg-clover-100 text-clover-800 border border-clover-200 font-bold text-xs sm:text-sm shadow-xs transition-all">
                             <span id="gdrive-auth-status-dot" class="w-2.5 h-2.5 rounded-full bg-clover-500"></span>
-                            <span id="gdrive-auth-status-text">Pengaturan Upload Drive (Tanpa Login/OAuth)</span>
+                            <span id="gdrive-auth-status-text">Bridge Drive Aktif (Siap Upload)</span>
                         </button>
                         <a href="https://drive.google.com/drive/folders/1B07jomfmZEPWigZt8JzNKeC0eoHIFJ6J?usp=sharing" target="_blank" rel="noopener noreferrer"
                             class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-white hover:bg-sky-50 text-sky-700 border border-sky-200 font-bold text-xs sm:text-sm shadow-xs transition-all">
@@ -703,7 +700,7 @@
                     ondrop="handleQuickDropzoneDrop(event)"
                     onclick="document.getElementById('quick-drive-file-input').click()"
                     class="cursor-pointer group bg-gradient-to-r from-clover-50 via-white to-emerald-50/70 hover:from-clover-100/70 hover:to-emerald-100/70 border-2 border-dashed border-clover-300 hover:border-clover-500 rounded-3xl p-5 sm:p-6 transition-all flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <input type="file" id="quick-drive-file-input" accept="image/*" class="hidden" onchange="handleQuickFileSelected(event)">
+                    <input type="file" id="quick-drive-file-input" accept="image/*" multiple class="hidden" onchange="handleQuickFileSelected(event)">
                     <div class="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
                         <div class="w-14 h-14 rounded-2xl bg-clover-500 text-white flex items-center justify-center shadow-md shadow-clover-500/25 group-hover:scale-105 transition-transform shrink-0 text-2xl">
                             📤
@@ -748,7 +745,7 @@
                     </select>
                 </div>
 
-                <!-- Grid Galeri Dokumentasi -->
+                <!-- Grid Galeri Dokumentasi (Kartu Folder Dokumentasi) -->
                 <div id="docs-gallery-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pb-10">
                     <!-- Dirender secara dinamis dari Firebase -->
                 </div>
@@ -1250,7 +1247,7 @@
                     <div class="w-9 h-9 rounded-xl bg-clover-500 text-white flex items-center justify-center text-base">⚡</div>
                     <div>
                         <h3 class="font-display font-bold text-base text-slate-800">Koneksi Langsung Folder Google Drive</h3>
-                        <p class="text-[11px] text-clover-700">Berfungsi 100% di file lokal (file://) tanpa error OAuth 404</p>
+                        <p class="text-[11px] text-clover-700">Unggah banyak foto sekaligus ke folder 1B07jomfmZEPWigZt8JzNKeC0eoHIFJ6J</p>
                     </div>
                 </div>
                 <button onclick="closeDriveBridgeConfigModal()" class="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-white/80">
@@ -1259,10 +1256,6 @@
             </div>
 
             <div class="p-6 overflow-y-auto space-y-4 text-xs text-slate-600">
-                <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 leading-relaxed">
-                    <strong>Kenapa muncul Error 404 Google sebelumnya?</strong> Karena file HTML dibuka langsung dari komputer (<code class="font-mono bg-amber-100 px-1 rounded">file:///...</code>), sehingga Google memblokir popup OAuth. Dengan <strong>Google Apps Script Web App</strong> (gratis & milik akun Google Anda sendiri), siapa pun bisa langsung mengunggah file ke folder <code class="font-mono font-bold">1B07jomfmZEPWigZt8JzNKeC0eoHIFJ6J</code> tanpa popup login!
-                </div>
-
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">URL Web App Google Apps Script Anda</label>
                     <div class="flex gap-2">
@@ -1278,18 +1271,12 @@
 
                 <div class="space-y-2 pt-2 border-t border-slate-100">
                     <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-800">Langkah Cepat (1 Menit Selesai):</span>
+                        <span class="font-bold text-slate-800">Kode Google Apps Script (Sudah Dikonfigurasi):</span>
                         <button type="button" onclick="copyAppsScriptCode()" class="px-2.5 py-1 rounded-lg bg-clover-100 hover:bg-clover-200 text-clover-800 font-bold text-[11px]">
                             📋 Salin Kode Script
                         </button>
                     </div>
-                    <ol class="list-decimal list-inside space-y-1 text-[11px] text-slate-600 leading-relaxed">
-                        <li>Buka editor proyek Google Apps Script Anda dengan akun pemilik folder Google Drive.</li>
-                        <li>Ganti kode dengan kode di bawah ini, pilih fungsi <strong>izinDrive</strong> di toolbar atas, lalu klik <strong>Run (▶)</strong> &rarr; <em>Review permissions</em> &rarr; <em>Allow</em>.</li>
-                        <li>Klik <strong>Deploy &rarr; Manage deployments &rarr; Edit (ikon pensil) &rarr; Version: New version &rarr; Deploy</strong> (agar izin `DriveApp` aktif di Web App).</li>
-                    </ol>
                     <pre id="apps-script-snippet" class="p-3 rounded-xl bg-slate-900 text-emerald-300 font-mono text-[10px] overflow-x-auto select-all leading-relaxed">function izinDrive() {
-  // Pilih fungsi ini lalu klik Run (▶) sekali untuk menyetujui izin Google Drive
   var folder = DriveApp.getFolderById("1B07jomfmZEPWigZt8JzNKeC0eoHIFJ6J");
   Logger.log("Berhasil terhubung ke folder: " + folder.getName());
 }
@@ -1325,13 +1312,14 @@ function doPost(e) {
     <script>
         /**
          * ===================================================================
-         * 1. KONFIGURASI FIREBASE REALTIME DATABASE & MAPTILER API
+         * 1. KONFIGURASI FIREBASE REALTIME DATABASE, AUTH & MAPTILER API
          * ===================================================================
          */
         const firebaseConfig = {
             apiKey: "AIzaSyBVUbFdWkj9K3xloNEqTLr505wc-Rr-BkA",
-            projectId: "issic-mattress",
-            databaseURL: "https://issic-mattress-default-rtdb.asia-southeast1.firebasedatabase.app"
+            authDomain: "issic-mattress.firebaseapp.com",
+            databaseURL: "https://issic-mattress-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "issic-mattress"
         };
 
         // Inisialisasi Firebase secara tersembunyi di latar belakang
@@ -1362,7 +1350,7 @@ function doPost(e) {
          */
         let currentUser = null;          // { id: '@abc', cleanId: 'abc', email: 'abc@gmail.com', role: 'user' | 'admin' }
         let driveAppsScriptUrl = localStorage.getItem('clover_drive_script_url') || DEFAULT_DRIVE_APPS_SCRIPT_URL;
-        let pendingDocImageFiles = []; // Daftar file gambar yang dipilih / di-drop user sebelum upload
+        let pendingDocImageFiles = [];   // Daftar file gambar yang dipilih / di-drop user sebelum upload
         let activePageView = 'map';      // 'map' | 'content' | 'drive' | 'digital'
         let map = null;                  // Instance Leaflet Map
         let tileLayers = {};             // Koleksi Layer MapTiler
@@ -1446,7 +1434,7 @@ function doPost(e) {
 
         /**
          * ===================================================================
-         * 4. AUTENTIKASI AKUN (EMAIL, GOOGLE SIGN-IN, & MANAJEMEN SESI)
+         * 4. AUTENTIKASI AKUN (GOOGLE OAUTH ASLI, EMAIL & MANAJEMEN SESI)
          * ===================================================================
          */
         function extractAccountIdFromEmail(email) {
@@ -1586,7 +1574,7 @@ function doPost(e) {
             const noticeBox = document.getElementById('google-oauth-domain-notice');
             const noticeDetail = document.getElementById('google-oauth-notice-detail');
 
-            // Google OAuth secara resmi menolak origin file:// dengan error 404/operation-not-supported
+            // Google OAuth secara resmi menolak origin file://
             if (window.location.protocol === 'file:') {
                 noticeBox.classList.remove('hidden');
                 showToast('Login Google memerlukan http://localhost atau domain HTTPS.', 'warning');
@@ -1614,7 +1602,7 @@ function doPost(e) {
                 const code = err && err.code ? err.code : '';
 
                 if (code === 'auth/popup-blocked' || code === 'auth/cancelled-popup-request') {
-                    // Jika popup diblokir browser, alihkan menggunakan Google OAuth Redirect resmi
+                    // Fallback menggunakan Google OAuth Redirect resmi jika popup diblokir
                     showToast('Mengalihkan ke halaman login Google...', 'info');
                     const provider = new firebase.auth.GoogleAuthProvider();
                     provider.addScope('email');
@@ -1903,6 +1891,11 @@ function doPost(e) {
             });
         }
 
+        /**
+         * ===================================================================
+         * 6. MANAJEMEN DOKUMENTASI GOOGLE DRIVE (MULTI-UPLOAD & FOLDER UI)
+         * ===================================================================
+         */
         function handleQuickDropzoneDragOver(e) {
             e.preventDefault();
             e.currentTarget.classList.add('border-clover-600', 'bg-clover-100/80');
@@ -1913,196 +1906,6 @@ function doPost(e) {
             e.currentTarget.classList.remove('border-clover-600', 'bg-clover-100/80');
         }
 
-        /**
-         * ===================================================================
-         * 6. MANAJEMEN DOKUMENTASI GOOGLE DRIVE (MULTI-UPLOAD & FOLDER UI)
-         * ===================================================================
-         */
-        function setSelectedDocImageFiles(fileList) {
-            const validImages = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
-            if (validImages.length === 0) {
-                showToast('Pilih file gambar yang valid (JPG, PNG, WEBP).', 'warning');
-                return;
-            }
-            pendingDocImageFiles = [...pendingDocImageFiles, ...validImages];
-
-            const placeholder = document.getElementById('modal-dropzone-placeholder');
-            const previewBox = document.getElementById('doc-drive-preview-box');
-            const countBadge = document.getElementById('doc-selected-count-badge');
-            const filenameEl = document.getElementById('doc-selected-filename');
-            const statusEl = document.getElementById('doc-selected-status');
-
-            placeholder.classList.add('hidden');
-            previewBox.classList.remove('hidden');
-            countBadge.textContent = `${pendingDocImageFiles.length} File`;
-            filenameEl.textContent = pendingDocImageFiles.length === 1
-                ? pendingDocImageFiles[0].name
-                : `${pendingDocImageFiles.length} gambar siap diunggah (${pendingDocImageFiles.map(f => f.name).join(', ')})`;
-            statusEl.textContent = 'Siap diunggah langsung ke Folder Google Drive Anda';
-
-            const titleInput = document.getElementById('doc-title');
-            if (titleInput && !titleInput.value.trim()) {
-                const baseName = pendingDocImageFiles[0].name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ');
-                titleInput.value = pendingDocImageFiles.length > 1
-                    ? `${baseName} (+${pendingDocImageFiles.length - 1} foto)`
-                    : baseName;
-            }
-        }
-
-        function computeDigitalReadinessScore(pin) {
-            let score = 0;
-            if (pin && pin.social && pin.social.trim() && pin.social.trim() !== '-') score += 1;
-            if (pin && pin.marketplace && pin.marketplace.trim() && pin.marketplace.trim() !== '-') score += 1;
-            if (pin && pin.qris === 'Ya') score += 1;
-            return score; // 0 sampai 3
-        }
-
-        function focusPinOnMap(pinId) {
-            const pin = allPinsData[pinId];
-            if (!pin) return;
-            switchPageView('map');
-            setTimeout(() => {
-                if (map) {
-                    map.flyTo([pin.lat, pin.lng], 18, { duration: 1.0 });
-                    openUmkmDetailModal(pinId);
-                }
-            }, 150);
-        }
-
-        function renderDigitalDirectory() {
-            const tbody = document.getElementById('digital-directory-tbody');
-            if (!tbody) return;
-
-            const allList = Object.entries(allPinsData).map(([id, val]) => ({
-                id,
-                ...val,
-                digitalScore: computeDigitalReadinessScore(val)
-            }));
-
-            const total = allList.length;
-            const withSocial = allList.filter(p => p.social && p.social.trim() && p.social.trim() !== '-').length;
-            const withMarket = allList.filter(p => p.marketplace && p.marketplace.trim() && p.marketplace.trim() !== '-').length;
-            const withQris = allList.filter(p => p.qris === 'Ya').length;
-            const priorityCount = allList.filter(p =>
-                (!p.social || !p.social.trim() || p.social.trim() === '-') &&
-                (!p.marketplace || !p.marketplace.trim() || p.marketplace.trim() === '-')
-            ).length;
-
-            document.getElementById('stat-digital-total').textContent = total;
-            document.getElementById('stat-digital-social').textContent = withSocial;
-            document.getElementById('stat-digital-social-pct').textContent = total ? `${Math.round((withSocial / total) * 100)}% dari total` : '0% dari total';
-            document.getElementById('stat-digital-market').textContent = withMarket;
-            document.getElementById('stat-digital-market-pct').textContent = total ? `${Math.round((withMarket / total) * 100)}% dari total` : '0% dari total';
-            document.getElementById('stat-digital-qris').textContent = withQris;
-            document.getElementById('stat-digital-qris-pct').textContent = total ? `${Math.round((withQris / total) * 100)}% dari total` : '0% dari total';
-            document.getElementById('stat-digital-priority').textContent = priorityCount;
-
-            const query = (document.getElementById('digital-search').value || '').toLowerCase().trim();
-            const socialFilter = document.getElementById('digital-filter-social').value;
-            const marketFilter = document.getElementById('digital-filter-market').value;
-            const qrisFilter = document.getElementById('digital-filter-qris').value;
-            const sortBy = document.getElementById('digital-sort-by').value;
-
-            let filtered = allList.filter(pin => {
-                const soc = (pin.social || '').trim();
-                const mkt = (pin.marketplace || '').trim();
-                const hasSoc = Boolean(soc && soc !== '-');
-                const hasMkt = Boolean(mkt && mkt !== '-');
-
-                if (socialFilter === 'has' && !hasSoc) return false;
-                if (socialFilter === 'none' && hasSoc) return false;
-                if (socialFilter === 'instagram' && !soc.toLowerCase().includes('ig') && !soc.toLowerCase().includes('instagram') && !soc.includes('@')) return false;
-                if (socialFilter === 'tiktok' && !soc.toLowerCase().includes('tiktok')) return false;
-
-                if (marketFilter === 'has' && !hasMkt) return false;
-                if (marketFilter === 'none' && hasMkt) return false;
-                if (marketFilter === 'food' && !/(gofood|grabfood|shopeefood)/i.test(mkt)) return false;
-                if (marketFilter === 'ecom' && !/(shopee|tokopedia|lazada|blibli|tiktok shop)/i.test(mkt)) return false;
-
-                if (qrisFilter !== 'all' && pin.qris !== qrisFilter) return false;
-
-                if (query) {
-                    const hay = `${pin.name} ${pin.address} ${soc} ${mkt} ${pin.phone}`.toLowerCase();
-                    return hay.includes(query);
-                }
-                return true;
-            });
-
-            if (sortBy === 'score_desc') {
-                filtered.sort((a, b) => b.digitalScore - a.digitalScore || (a.name || '').localeCompare(b.name || ''));
-            } else if (sortBy === 'score_asc') {
-                filtered.sort((a, b) => a.digitalScore - b.digitalScore || (a.name || '').localeCompare(b.name || ''));
-            } else if (sortBy === 'name_asc') {
-                filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-            }
-
-            if (filtered.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="py-12 text-center text-xs text-slate-400">
-                            Tidak ada UMKM yang sesuai dengan filter kanal digital saat ini.
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-
-            tbody.innerHTML = filtered.map(pin => {
-                const soc = (pin.social || '').trim();
-                const mkt = (pin.marketplace || '').trim();
-                const scoreLabels = [
-                    { text: 'Perlu Pendampingan', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
-                    { text: 'Mulai Go-Digital (1/3)', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-                    { text: 'Berkembang (2/3)', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
-                    { text: 'Digital Lengkap (3/3)', cls: 'bg-clover-100 text-clover-800 border-clover-300' }
-                ];
-                const badge = scoreLabels[pin.digitalScore] || scoreLabels[0];
-
-                return `
-                    <tr class="hover:bg-clover-50/40 transition-colors">
-                        <td class="py-3.5 px-4">
-                            <div class="font-display font-bold text-slate-800">${escapeHtml(pin.name)}</div>
-                            <div class="text-xs text-slate-500 line-clamp-1 max-w-xs">${escapeHtml(pin.address || '-')}</div>
-                        </td>
-                        <td class="py-3.5 px-4">
-                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.cls}">
-                                ${badge.text}
-                            </span>
-                        </td>
-                        <td class="py-3.5 px-4 text-xs">
-                            ${soc && soc !== '-'
-                                ? `<span class="font-semibold text-pink-700 bg-pink-50 px-2.5 py-1 rounded-lg border border-pink-100 inline-block">${escapeHtml(soc)}</span>`
-                                : `<span class="text-slate-400 italic">Belum ada</span>`}
-                        </td>
-                        <td class="py-3.5 px-4 text-xs">
-                            ${mkt && mkt !== '-'
-                                ? `<span class="font-semibold text-orange-700 bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-100 inline-block">${escapeHtml(mkt)}</span>`
-                                : `<span class="text-slate-400 italic">Belum ada</span>`}
-                        </td>
-                        <td class="py-3.5 px-4 text-xs">
-                            <div class="flex flex-col gap-1">
-                                <span class="font-bold ${pin.qris === 'Ya' ? 'text-clover-700' : 'text-slate-500'}">
-                                    ${pin.qris === 'Ya' ? '✅ QRIS Aktif' : '💵 Non-QRIS'}
-                                </span>
-                                <span class="text-slate-500 font-mono text-[11px]">${escapeHtml(pin.phone || '-')}</span>
-                            </div>
-                        </td>
-                        <td class="py-3.5 px-4 text-right">
-                            <button type="button" onclick="focusPinOnMap('${pin.id}')"
-                                class="px-3 py-1.5 rounded-xl bg-clover-600 hover:bg-clover-700 text-white text-xs font-bold shadow-2xs transition-colors">
-                                Lihat di Peta 🗺️
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        /**
-         * ===================================================================
-         * 6. MANAJEMEN DOKUMENTASI GOOGLE DRIVE (MULTI-UPLOAD & FOLDER UI)
-         * ===================================================================
-         */
         function handleQuickDropzoneDrop(e) {
             e.preventDefault();
             e.currentTarget.classList.remove('border-clover-600', 'bg-clover-100/80');
@@ -2145,6 +1948,37 @@ function doPost(e) {
                 setSelectedDocImageFiles(files);
             }
             e.target.value = '';
+        }
+
+        function setSelectedDocImageFiles(fileList) {
+            const validImages = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
+            if (validImages.length === 0) {
+                showToast('Pilih file gambar yang valid (JPG, PNG, WEBP).', 'warning');
+                return;
+            }
+            pendingDocImageFiles = [...pendingDocImageFiles, ...validImages];
+
+            const placeholder = document.getElementById('modal-dropzone-placeholder');
+            const previewBox = document.getElementById('doc-drive-preview-box');
+            const countBadge = document.getElementById('doc-selected-count-badge');
+            const filenameEl = document.getElementById('doc-selected-filename');
+            const statusEl = document.getElementById('doc-selected-status');
+
+            placeholder.classList.add('hidden');
+            previewBox.classList.remove('hidden');
+            countBadge.textContent = `${pendingDocImageFiles.length} File`;
+            filenameEl.textContent = pendingDocImageFiles.length === 1
+                ? pendingDocImageFiles[0].name
+                : `${pendingDocImageFiles.length} gambar siap diunggah (${pendingDocImageFiles.map(f => f.name).join(', ')})`;
+            statusEl.textContent = 'Siap diunggah langsung ke Folder Google Drive Anda';
+
+            const titleInput = document.getElementById('doc-title');
+            if (titleInput && !titleInput.value.trim()) {
+                const baseName = pendingDocImageFiles[0].name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ');
+                titleInput.value = pendingDocImageFiles.length > 1
+                    ? `${baseName} (+${pendingDocImageFiles.length - 1} foto)`
+                    : baseName;
+            }
         }
 
         function toggleManualDriveLinkInput() {
@@ -2496,7 +2330,161 @@ function doPost(e) {
 
         /**
          * ===================================================================
-         * 7. REFERENSI KONTEN UMKM (KURASI & PENYORTIRAN)
+         * 7. DIREKTORI & EVALUASI KANAL DIGITAL (MEDSOS & MARKETPLACE)
+         * ===================================================================
+         */
+        function computeDigitalReadinessScore(pin) {
+            let score = 0;
+            if (pin && pin.social && pin.social.trim() && pin.social.trim() !== '-') score += 1;
+            if (pin && pin.marketplace && pin.marketplace.trim() && pin.marketplace.trim() !== '-') score += 1;
+            if (pin && pin.qris === 'Ya') score += 1;
+            return score; // 0 sampai 3
+        }
+
+        function focusPinOnMap(pinId) {
+            const pin = allPinsData[pinId];
+            if (!pin) return;
+            switchPageView('map');
+            setTimeout(() => {
+                if (map) {
+                    map.flyTo([pin.lat, pin.lng], 18, { duration: 1.0 });
+                    openUmkmDetailModal(pinId);
+                }
+            }, 150);
+        }
+
+        function renderDigitalDirectory() {
+            const tbody = document.getElementById('digital-directory-tbody');
+            if (!tbody) return;
+
+            const allList = Object.entries(allPinsData).map(([id, val]) => ({
+                id,
+                ...val,
+                digitalScore: computeDigitalReadinessScore(val)
+            }));
+
+            const total = allList.length;
+            const withSocial = allList.filter(p => p.social && p.social.trim() && p.social.trim() !== '-').length;
+            const withMarket = allList.filter(p => p.marketplace && p.marketplace.trim() && p.marketplace.trim() !== '-').length;
+            const withQris = allList.filter(p => p.qris === 'Ya').length;
+            const priorityCount = allList.filter(p =>
+                (!p.social || !p.social.trim() || p.social.trim() === '-') &&
+                (!p.marketplace || !p.marketplace.trim() || p.marketplace.trim() === '-')
+            ).length;
+
+            document.getElementById('stat-digital-total').textContent = total;
+            document.getElementById('stat-digital-social').textContent = withSocial;
+            document.getElementById('stat-digital-social-pct').textContent = total ? `${Math.round((withSocial / total) * 100)}% dari total` : '0% dari total';
+            document.getElementById('stat-digital-market').textContent = withMarket;
+            document.getElementById('stat-digital-market-pct').textContent = total ? `${Math.round((withMarket / total) * 100)}% dari total` : '0% dari total';
+            document.getElementById('stat-digital-qris').textContent = withQris;
+            document.getElementById('stat-digital-qris-pct').textContent = total ? `${Math.round((withQris / total) * 100)}% dari total` : '0% dari total';
+            document.getElementById('stat-digital-priority').textContent = priorityCount;
+
+            const query = (document.getElementById('digital-search').value || '').toLowerCase().trim();
+            const socialFilter = document.getElementById('digital-filter-social').value;
+            const marketFilter = document.getElementById('digital-filter-market').value;
+            const qrisFilter = document.getElementById('digital-filter-qris').value;
+            const sortBy = document.getElementById('digital-sort-by').value;
+
+            let filtered = allList.filter(pin => {
+                const soc = (pin.social || '').trim();
+                const mkt = (pin.marketplace || '').trim();
+                const hasSoc = Boolean(soc && soc !== '-');
+                const hasMkt = Boolean(mkt && mkt !== '-');
+
+                if (socialFilter === 'has' && !hasSoc) return false;
+                if (socialFilter === 'none' && hasSoc) return false;
+                if (socialFilter === 'instagram' && !soc.toLowerCase().includes('ig') && !soc.toLowerCase().includes('instagram') && !soc.includes('@')) return false;
+                if (socialFilter === 'tiktok' && !soc.toLowerCase().includes('tiktok')) return false;
+
+                if (marketFilter === 'has' && !hasMkt) return false;
+                if (marketFilter === 'none' && hasMkt) return false;
+                if (marketFilter === 'food' && !/(gofood|grabfood|shopeefood)/i.test(mkt)) return false;
+                if (marketFilter === 'ecom' && !/(shopee|tokopedia|lazada|blibli|tiktok shop)/i.test(mkt)) return false;
+
+                if (qrisFilter !== 'all' && pin.qris !== qrisFilter) return false;
+
+                if (query) {
+                    const hay = `${pin.name} ${pin.address} ${soc} ${mkt} ${pin.phone}`.toLowerCase();
+                    return hay.includes(query);
+                }
+                return true;
+            });
+
+            if (sortBy === 'score_desc') {
+                filtered.sort((a, b) => b.digitalScore - a.digitalScore || (a.name || '').localeCompare(b.name || ''));
+            } else if (sortBy === 'score_asc') {
+                filtered.sort((a, b) => a.digitalScore - b.digitalScore || (a.name || '').localeCompare(b.name || ''));
+            } else if (sortBy === 'name_asc') {
+                filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="py-12 text-center text-xs text-slate-400">
+                            Tidak ada UMKM yang sesuai dengan filter kanal digital saat ini.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(pin => {
+                const soc = (pin.social || '').trim();
+                const mkt = (pin.marketplace || '').trim();
+                const scoreLabels = [
+                    { text: 'Perlu Pendampingan', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+                    { text: 'Mulai Go-Digital (1/3)', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                    { text: 'Berkembang (2/3)', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
+                    { text: 'Digital Lengkap (3/3)', cls: 'bg-clover-100 text-clover-800 border-clover-300' }
+                ];
+                const badge = scoreLabels[pin.digitalScore] || scoreLabels[0];
+
+                return `
+                    <tr class="hover:bg-clover-50/40 transition-colors">
+                        <td class="py-3.5 px-4">
+                            <div class="font-display font-bold text-slate-800">${escapeHtml(pin.name)}</div>
+                            <div class="text-xs text-slate-500 line-clamp-1 max-w-xs">${escapeHtml(pin.address || '-')}</div>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.cls}">
+                                ${badge.text}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-4 text-xs">
+                            ${soc && soc !== '-'
+                                ? `<span class="font-semibold text-pink-700 bg-pink-50 px-2.5 py-1 rounded-lg border border-pink-100 inline-block">${escapeHtml(soc)}</span>`
+                                : `<span class="text-slate-400 italic">Belum ada</span>`}
+                        </td>
+                        <td class="py-3.5 px-4 text-xs">
+                            ${mkt && mkt !== '-'
+                                ? `<span class="font-semibold text-orange-700 bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-100 inline-block">${escapeHtml(mkt)}</span>`
+                                : `<span class="text-slate-400 italic">Belum ada</span>`}
+                        </td>
+                        <td class="py-3.5 px-4 text-xs">
+                            <div class="flex flex-col gap-1">
+                                <span class="font-bold ${pin.qris === 'Ya' ? 'text-clover-700' : 'text-slate-500'}">
+                                    ${pin.qris === 'Ya' ? '✅ QRIS Aktif' : '💵 Non-QRIS'}
+                                </span>
+                                <span class="text-slate-500 font-mono text-[11px]">${escapeHtml(pin.phone || '-')}</span>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-4 text-right">
+                            <button type="button" onclick="focusPinOnMap('${pin.id}')"
+                                class="px-3 py-1.5 rounded-xl bg-clover-600 hover:bg-clover-700 text-white text-xs font-bold shadow-2xs transition-colors">
+                                Lihat di Peta 🗺️
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        /**
+         * ===================================================================
+         * 8. REFERENSI KONTEN UMKM (KURASI & PENYORTIRAN)
          * ===================================================================
          */
         function openContentRefModal(editId = null) {
@@ -2668,7 +2656,7 @@ function doPost(e) {
 
         /**
          * ===================================================================
-         * 8. KONFIRMASI HAPUS UNIVERSAL (PIN, KONTEN, DOKUMENTASI)
+         * 9. KONFIRMASI HAPUS UNIVERSAL (PIN, KONTEN, DOKUMENTASI)
          * ===================================================================
          */
         function promptDeleteItem(itemType, itemId, itemLabel) {
@@ -2716,7 +2704,7 @@ function doPost(e) {
 
         /**
          * ===================================================================
-         * 9. PETA INTERAKTIF LEAFLET.JS + MAPTILER API + GPS & LONG-PRESS
+         * 10. PETA INTERAKTIF LEAFLET.JS + MAPTILER API + GPS & LONG-PRESS
          * ===================================================================
          */
         function initMapIfNeeded() {
@@ -2971,7 +2959,7 @@ function doPost(e) {
 
         /**
          * ===================================================================
-         * 10. FORMULIR & DETAIL PIN CLOVER UMKM (CRUD + RBAC)
+         * 11. FORMULIR & DETAIL PIN CLOVER UMKM (CRUD + RBAC)
          * ===================================================================
          */
         async function reverseGeocodeCoords(lat, lng) {
@@ -3186,7 +3174,7 @@ function doPost(e) {
 
         /**
          * ===================================================================
-         * 11. DRAWER DIREKTORI UMKM DI HALAMAN PETA
+         * 12. DRAWER DIREKTORI UMKM DI HALAMAN PETA
          * ===================================================================
          */
         function toggleDirectoryDrawer(open) {
@@ -3256,7 +3244,7 @@ function doPost(e) {
 
         /**
          * ===================================================================
-         * 12. SINKRONISASI REALTIME FIREBASE & INISIALISASI HALAMAN
+         * 13. SINKRONISASI REALTIME FIREBASE & INISIALISASI HALAMAN
          * ===================================================================
          */
         let listenersAttached = false;
