@@ -1636,46 +1636,62 @@ function doPost(e) {
             const { cleanId, formattedId } = extractAccountIdFromEmail(email);
 
             try {
+                // Langkah 1: Cek terlebih dahulu apakah ID akun sudah ada di node umkm_clover_map/users
                 const snap = await usersRef.child(cleanId).once('value');
                 let role = PRESET_ADMIN_IDS.includes(formattedId) ? 'admin' : 'user';
+                let isFirstTimeAccount = false;
+
                 if (!snap.exists()) {
+                    // Pertama kali login dengan Google -> buat akun secara otomatis di database
+                    isFirstTimeAccount = true;
                     await usersRef.child(cleanId).set({
                         id: formattedId,
+                        username: cleanId,
                         cleanId,
                         email,
                         displayName,
                         photoURL,
                         firebaseUid: uid,
-                        authProvider: 'google.com',
+                        authProvider: 'google',
                         role,
-                        createdAt: firebase.database.ServerValue.TIMESTAMP
-                    });
-                } else {
-                    const existing = snap.val();
-                    if (existing.role === 'admin') role = 'admin';
-                    await usersRef.child(cleanId).update({
-                        displayName: displayName || existing.displayName || '',
-                        photoURL: photoURL || existing.photoURL || '',
-                        firebaseUid: uid,
-                        authProvider: 'google.com',
+                        createdAt: firebase.database.ServerValue.TIMESTAMP,
                         lastLoginAt: firebase.database.ServerValue.TIMESTAMP
                     });
+                } else {
+                    // Akun sudah terdaftar -> pertahankan profil & role yang ada, perbarui waktu login terakhir
+                    const existing = snap.val() || {};
+                    if (existing.role === 'admin') role = 'admin';
+
+                    const updatePayload = {
+                        firebaseUid: uid,
+                        authProvider: existing.authProvider || 'google',
+                        lastLoginAt: firebase.database.ServerValue.TIMESTAMP
+                    };
+                    if (photoURL) updatePayload.photoURL = photoURL;
+                    if (!existing.displayName && displayName) updatePayload.displayName = displayName;
+
+                    await usersRef.child(cleanId).update(updatePayload);
                 }
 
                 completeUserLogin({
                     id: formattedId,
                     cleanId,
                     email,
-                    displayName,
-                    photoURL,
+                    displayName: displayName || (snap.exists() ? snap.val().displayName || '' : ''),
+                    photoURL: photoURL || (snap.exists() ? snap.val().photoURL || '' : ''),
                     uid,
-                    authProvider: 'google.com',
+                    authProvider: 'google',
                     role
                 });
-                showToast(`Berhasil masuk dengan Google sebagai ${formattedId}!`, 'success');
+
+                if (isFirstTimeAccount) {
+                    showToast(`Akun baru ${formattedId} otomatis dibuat dari Google!`, 'success');
+                } else {
+                    showToast(`Akun ${formattedId} sudah terdaftar — langsung masuk dengan Google!`, 'success');
+                }
             } catch (err) {
                 console.error('Finalize Google OAuth error:', err);
-                showToast('Gagal menyinkronkan profil Google ke database.', 'error');
+                showToast('Gagal memeriksa/menyinkronkan akun Google ke database.', 'error');
             }
         }
 
