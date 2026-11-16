@@ -1284,15 +1284,38 @@
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
-    var folder = DriveApp.getFolderById("1B07jomfmZEPWigZt8JzNKeC0eoHIFJ6J");
-    var decoded = Utilities.base64Decode(data.base64);
-    var blob = Utilities.newBlob(decoded, data.mimeType || "image/jpeg", data.fileName);
-    var file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var rootFolder = DriveApp.getFolderById("1B07jomfmZEPWigZt8JzNKeC0eoHIFJ6J");
+    var targetFolder = rootFolder;
+
+    if (data.folderName) {
+      var existing = rootFolder.getFoldersByName(data.folderName);
+      targetFolder = existing.hasNext() ? existing.next() : rootFolder.createFolder(data.folderName);
+    }
+
+    var filesInput = Array.isArray(data.files) ? data.files : [data];
+    var uploadedList = [];
+
+    for (var i = 0; i < filesInput.length; i++) {
+      var item = filesInput[i];
+      if (!item || !item.base64) continue;
+      var decoded = Utilities.base64Decode(item.base64);
+      var blob = Utilities.newBlob(decoded, item.mimeType || "image/jpeg", item.fileName || ("foto_" + (i + 1) + ".jpg"));
+      var created = targetFolder.createFile(blob);
+      uploadedList.push({
+        fileId: created.getId(),
+        fileName: created.getName(),
+        driveUrl: "https://drive.google.com/file/d/" + created.getId() + "/view?usp=sharing"
+      });
+    }
+
+    var folderUrl = "https://drive.google.com/drive/folders/" + targetFolder.getId() + "?usp=sharing";
     return ContentService.createTextOutput(JSON.stringify({
       status: "ok",
-      fileId: file.getId(),
-      driveUrl: "https://drive.google.com/file/d/" + file.getId() + "/view?usp=sharing"
+      count: uploadedList.length,
+      folderId: targetFolder.getId(),
+      folderUrl: folderUrl,
+      driveUrl: uploadedList.length === 1 ? uploadedList[0].driveUrl : folderUrl,
+      files: uploadedList
     })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({
@@ -2091,18 +2114,31 @@ function doPost(e) {
             });
         }
 
-        async function uploadSingleImageToGoogleDrive(file, customPrefixName) {
+        async function uploadBatchImagesToGoogleDrive(filesArray, umkmName, activityTitle, activityDate) {
             const bridgeUrl = (driveAppsScriptUrl || DEFAULT_DRIVE_APPS_SCRIPT_URL).trim();
-            const { blob } = await compressImageFile(file, 1600, 0.84);
-            const pureBase64 = await blobToBase64Pure(blob);
-            const safePrefix = (customPrefixName || 'UMKM').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-            const finalFileName = `${safePrefix}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+            const safePrefix = (umkmName || 'UMKM').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 28);
+            const safeFolderTitle = `${umkmName || 'UMKM'} - ${activityTitle || 'Dokumentasi'} (${activityDate || ''})`
+                .replace(/[\\/:*?"<>|]/g, '_')
+                .trim()
+                .slice(0, 80);
+
+            const preparedFiles = [];
+            for (let i = 0; i < filesArray.length; i++) {
+                const file = filesArray[i];
+                const { blob } = await compressImageFile(file, 1400, 0.80);
+                const pureBase64 = await blobToBase64Pure(blob);
+                const cleanOrigName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                preparedFiles.push({
+                    fileName: `${safePrefix}_${i + 1}_${Date.now()}_${cleanOrigName}`,
+                    mimeType: 'image/jpeg',
+                    base64: pureBase64
+                });
+            }
 
             const payload = JSON.stringify({
-                fileName: finalFileName,
-                mimeType: 'image/jpeg',
-                base64: pureBase64,
-                folderId: GOOGLE_DRIVE_FOLDER_ID
+                folderId: GOOGLE_DRIVE_FOLDER_ID,
+                folderName: safeFolderTitle,
+                files: preparedFiles
             });
 
             try {
@@ -2116,29 +2152,28 @@ function doPost(e) {
                 try {
                     const json = JSON.parse(text);
                     if (json && json.status === 'error') {
-                        throw new Error(json.message || 'Gagal mengunggah ke Drive.');
+                        throw new Error(json.message || 'Gagal mengunggah paket gambar ke Drive.');
                     }
                     return {
-                        fileId: json.fileId || '',
-                        driveUrl: json.driveUrl || GOOGLE_DRIVE_FOLDER_URL,
-                        fileName: finalFileName
+                        folderUrl: json.folderUrl || GOOGLE_DRIVE_FOLDER_URL,
+                        driveUrl: json.driveUrl || json.folderUrl || GOOGLE_DRIVE_FOLDER_URL,
+                        fileNames: preparedFiles.map(f => f.fileName)
                     };
                 } catch (parseErr) {
                     if (parseErr.message && parseErr.message.includes('Akses ditolak')) {
                         throw parseErr;
                     }
-                    // Jika Google Apps Script sukses namun mengembalikan HTML redirect, anggap sukses ke folder target
                     return {
-                        fileId: '',
+                        folderUrl: GOOGLE_DRIVE_FOLDER_URL,
                         driveUrl: GOOGLE_DRIVE_FOLDER_URL,
-                        fileName: finalFileName
+                        fileNames: preparedFiles.map(f => f.fileName)
                     };
                 }
             } catch (networkErr) {
                 if (networkErr.message && networkErr.message.includes('Akses ditolak')) {
                     throw networkErr;
                 }
-                // Fallback no-cors agar redirect Google Apps Script tidak memicu notifikasi gagal palsu
+                // Fallback no-cors agar redirect 302 Google Apps Script tidak memblokir pengiriman paket
                 await fetch(bridgeUrl, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -2146,9 +2181,9 @@ function doPost(e) {
                     body: payload
                 });
                 return {
-                    fileId: '',
+                    folderUrl: GOOGLE_DRIVE_FOLDER_URL,
                     driveUrl: GOOGLE_DRIVE_FOLDER_URL,
-                    fileName: finalFileName
+                    fileNames: preparedFiles.map(f => f.fileName)
                 };
             }
         }
@@ -2179,41 +2214,39 @@ function doPost(e) {
             saveBtn.disabled = true;
 
             try {
-                let uploadedFilesMeta = [];
+                let uploadedBatchResult = null;
                 let primaryDriveUrl = manualUrl || document.getElementById('doc-drive-url').value || GOOGLE_DRIVE_FOLDER_URL;
 
                 if (pendingDocImageFiles.length > 0) {
                     progressWrap.classList.remove('hidden');
                     const totalFiles = pendingDocImageFiles.length;
 
-                    for (let i = 0; i < totalFiles; i++) {
-                        const pct = Math.round(((i) / totalFiles) * 100);
-                        progressLabel.textContent = `Mengunggah gambar ${i + 1} dari ${totalFiles} ke Google Drive...`;
-                        progressPct.textContent = `${pct}%`;
-                        progressBar.style.width = `${Math.max(12, pct)}%`;
+                    progressLabel.textContent = `Menyiapkan & mengirim ${totalFiles} gambar sekaligus ke Google Drive...`;
+                    progressPct.textContent = '55%';
+                    progressBar.style.width = '55%';
 
-                        const res = await uploadSingleImageToGoogleDrive(pendingDocImageFiles[i], umkmName);
-                        uploadedFilesMeta.push(res);
-                    }
+                    uploadedBatchResult = await uploadBatchImagesToGoogleDrive(
+                        pendingDocImageFiles,
+                        umkmName,
+                        title,
+                        activityDate
+                    );
 
-                    progressLabel.textContent = `Selesai mengunggah ${totalFiles} gambar!`;
+                    progressLabel.textContent = `Selesai mengunggah ${totalFiles} gambar ke subfolder Drive!`;
                     progressPct.textContent = '100%';
                     progressBar.style.width = '100%';
 
-                    // Jika lebih dari 1 file, arahkan langsung ke folder bersama agar semua foto terlihat
-                    primaryDriveUrl = uploadedFilesMeta.length === 1 && uploadedFilesMeta[0].driveUrl
-                        ? uploadedFilesMeta[0].driveUrl
-                        : GOOGLE_DRIVE_FOLDER_URL;
+                    primaryDriveUrl = uploadedBatchResult.driveUrl || uploadedBatchResult.folderUrl || GOOGLE_DRIVE_FOLDER_URL;
                 }
 
                 const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
                 if (editId && allDocsData[editId]) {
                     const existing = allDocsData[editId];
-                    const addedCount = uploadedFilesMeta.length;
+                    const addedNames = uploadedBatchResult ? uploadedBatchResult.fileNames : [];
                     const updatedFileNames = [
                         ...(existing.fileNames || []),
-                        ...uploadedFilesMeta.map(f => f.fileName)
+                        ...addedNames
                     ];
                     await docsRef.child(editId).update({
                         umkmName,
@@ -2222,13 +2255,14 @@ function doPost(e) {
                         activityDate,
                         description,
                         driveUrl: primaryDriveUrl,
-                        fileCount: (existing.fileCount || 1) + addedCount,
+                        fileCount: (existing.fileCount || 1) + addedNames.length,
                         fileNames: updatedFileNames,
                         updatedAt: firebase.database.ServerValue.TIMESTAMP
                     });
                     showToast('Folder dokumentasi berhasil diperbarui!', 'success');
                 } else {
                     const newRef = docsRef.push();
+                    const uploadedNames = uploadedBatchResult ? uploadedBatchResult.fileNames : [];
                     await newRef.set({
                         umkmName,
                         title,
@@ -2237,13 +2271,13 @@ function doPost(e) {
                         activityTime: nowTime,
                         description,
                         driveUrl: primaryDriveUrl,
-                        folderUrl: GOOGLE_DRIVE_FOLDER_URL,
-                        fileCount: uploadedFilesMeta.length || 1,
-                        fileNames: uploadedFilesMeta.map(f => f.fileName),
+                        folderUrl: uploadedBatchResult ? uploadedBatchResult.folderUrl : GOOGLE_DRIVE_FOLDER_URL,
+                        fileCount: uploadedNames.length || 1,
+                        fileNames: uploadedNames,
                         ownerId: currentUser.id,
                         createdAt: firebase.database.ServerValue.TIMESTAMP
                     });
-                    showToast(`${uploadedFilesMeta.length || 1} berkas berhasil diunggah ke folder Google Drive!`, 'success');
+                    showToast(`${uploadedNames.length || 1} berkas berhasil diunggah sekaligus ke folder Google Drive!`, 'success');
                 }
 
                 closeDocModal();
