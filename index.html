@@ -250,7 +250,7 @@
                 </div>
             </div>
 
-            <!-- Info Bantuan Jika Dibuka dari file:// Lokal (Google OAuth Mewajibkan HTTP/HTTPS) -->
+            <!-- Info Bantuan Jika Dibuka dari file:// Lokal atau Domain Belum Terdaftar -->
             <div id="google-oauth-domain-notice" class="hidden mb-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1.5">
                 <div class="flex items-start justify-between gap-2">
                     <div class="font-bold flex items-center gap-1.5">
@@ -1437,9 +1437,24 @@ function doPost(e) {
          * 4. AUTENTIKASI AKUN (GOOGLE OAUTH ASLI, EMAIL & MANAJEMEN SESI)
          * ===================================================================
          */
+        /**
+         * Sanitasi key untuk Firebase Realtime Database:
+         * Firebase melarang karakter '.', '#', '$', '[', ']' dalam path key.
+         * Mengubah karakter tersebut (misal faizal.um@gmail.com -> faizal_um) menjadi '_'
+         */
+        function sanitizeFirebaseUserKey(rawStr) {
+            const cleaned = (rawStr || '')
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9_-]/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^_+|_+$/g, '');
+            return cleaned || 'user';
+        }
+
         function extractAccountIdFromEmail(email) {
             const rawPrefix = (email || '').split('@')[0] || 'user';
-            const cleanId = rawPrefix.toLowerCase().replace(/[^a-z0-9._-]/g, '') || 'user';
+            const cleanId = sanitizeFirebaseUserKey(rawPrefix);
             return {
                 cleanId,
                 formattedId: `@${cleanId}`
@@ -1513,7 +1528,7 @@ function doPost(e) {
                 showToast(`Akun ${formattedId} berhasil dibuat! Selamat datang.`, 'success');
             } catch (err) {
                 console.error('Register error:', err);
-                showToast('Gagal mendaftarkan akun. Periksa koneksi internet Anda.', 'error');
+                showToast(`Gagal mendaftarkan akun: ${err.code || err.message}`, 'error');
             } finally {
                 btn.disabled = false;
             }
@@ -1525,7 +1540,7 @@ function doPost(e) {
             const password = document.getElementById('login-password').value;
 
             let cleanId = identifier.startsWith('@')
-                ? identifier.slice(1).replace(/[^a-z0-9._-]/g, '')
+                ? sanitizeFirebaseUserKey(identifier.slice(1))
                 : extractAccountIdFromEmail(identifier).cleanId;
 
             if (!cleanId) {
@@ -1562,7 +1577,7 @@ function doPost(e) {
                 showToast(`Selamat datang kembali, ${formattedId}!`, 'success');
             } catch (err) {
                 console.error('Login error:', err);
-                showToast('Gagal masuk ke akun. Periksa koneksi Anda.', 'error');
+                showToast(`Gagal masuk ke akun: ${err.code || err.message}`, 'error');
             } finally {
                 btn.disabled = false;
             }
@@ -1690,8 +1705,9 @@ function doPost(e) {
                     showToast(`Akun ${formattedId} sudah terdaftar — langsung masuk dengan Google!`, 'success');
                 }
             } catch (err) {
-                console.error('Finalize Google OAuth error:', err);
-                showToast('Gagal memeriksa/menyinkronkan akun Google ke database.', 'error');
+                console.error('Detail error sync Google ke database:', err);
+                const errDetail = err && (err.code || err.message) ? ` (${err.code || err.message})` : '';
+                showToast(`Gagal sinkronisasi DB${errDetail}. Periksa Rules Realtime Database.`, 'error');
             }
         }
 
@@ -1740,6 +1756,10 @@ function doPost(e) {
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     if (parsed && parsed.id && parsed.cleanId) {
+                        // Pastikan cleanId lama yang mungkin mengandung titik ikut disanitasi
+                        const safeCleanId = sanitizeFirebaseUserKey(parsed.cleanId);
+                        parsed.cleanId = safeCleanId;
+                        parsed.id = `@${safeCleanId}`;
                         completeUserLogin(parsed);
                         return;
                     }
